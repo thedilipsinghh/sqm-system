@@ -18,19 +18,9 @@ export default function AdminHeader() {
           <div className="hidden md:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-secondary-container/40 text-on-secondary-container">
             <span className="w-2 h-2 rounded-full bg-secondary"></span>
             <span className="font-label-ui text-label-ui">
-              All Systems Normal (12 Desks)
+              System Online
             </span>
           </div>
-          <button className="relative p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined text-[22px]">
-              notifications
-            </span>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error"></span>
-          </button>
-          <button className="flex items-center gap-space-xs px-space-md py-1.5 rounded-lg bg-primary-container text-on-primary hover:bg-primary transition-colors font-label-ui text-label-ui">
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            <span>Issue Token</span>
-          </button>
           <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-on-primary text-[18px]">
               person

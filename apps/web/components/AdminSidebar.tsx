@@ -51,7 +51,7 @@ export default function AdminSidebar() {
               Dashboard
             </Link>
             <Link
-              href="#"
+              href="/admin/dashboard"
               className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
             >
               <span className="material-symbols-outlined text-[20px]">
@@ -60,38 +60,13 @@ export default function AdminSidebar() {
               Counters
             </Link>
             <Link
-              href="#"
+              href="/admin/dashboard"
               className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
             >
               <span className="material-symbols-outlined text-[20px]">
                 linear_scale
               </span>
               Queue Management
-            </Link>
-            <Link
-              href="#"
-              className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
-            >
-              <span className="material-symbols-outlined text-[20px]">
-                confirmation_number
-              </span>
-              Tokens
-            </Link>
-            <Link
-              href="#"
-              className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
-            >
-              <span className="material-symbols-outlined text-[20px]">
-                history_toggle_off
-              </span>
-              Activity
-            </Link>
-            <Link
-              href="#"
-              className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
-            >
-              <span className="material-symbols-outlined text-[20px]">tune</span>
-              Settings
             </Link>
           </nav>
         </div>

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import { useGetMeQuery } from "../../store/api/authApi";
@@ -14,16 +15,28 @@ import {
 import { useGetCountersQuery } from "../../store/api/counterApi";
 
 export default function CustomerDashboard() {
-  const { data: userResponse } = useGetMeQuery(undefined);
-  const user = userResponse?.data;
+  const router = useRouter();
+  const { data: userResponse, isLoading: isAuthLoading, isError: isAuthError } = useGetMeQuery(undefined);
+  const user = userResponse?.user || userResponse?.data;
+  const isAuthenticated = Boolean(user);
 
-  const { data: currentTokenRes, isLoading: isTokenLoading, refetch: refetchToken } = useGetCurrentCustomerTokenQuery(undefined, { pollingInterval: 3000 });
+  useEffect(() => {
+    if (!isAuthLoading && (isAuthError || !isAuthenticated)) {
+      router.push("/login");
+    }
+  }, [isAuthLoading, isAuthError, isAuthenticated, router]);
+
+  const { data: currentTokenRes, isLoading: isTokenLoading, refetch: refetchToken } = useGetCurrentCustomerTokenQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const activeToken = currentTokenRes?.data;
 
-  const { data: historyRes } = useGetCustomerHistoryQuery(undefined);
+  const { data: historyRes } = useGetCustomerHistoryQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const history = historyRes?.data || [];
 
-  const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined, { pollingInterval: 5000 });
+  const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined);
   const counters = countersRes?.data || [];
 
   const [generateToken] = useGenerateTokenMutation();
@@ -31,6 +44,8 @@ export default function CustomerDashboard() {
 
   const [notifActive, setNotifActive] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const cfg = activeToken ? {
     statusText: activeToken.status === "SERVING" ? "SERVING NOW" : "WAITING",
@@ -46,17 +61,13 @@ export default function CustomerDashboard() {
 
   const handleCancelToken = async () => {
     if (!activeToken) return;
-    if (
-      window.confirm(
-        `Are you sure you want to cancel token ${activeToken.tokenNumber}? This action cannot be reversed.`
-      )
-    ) {
-      try {
-        await cancelToken(activeToken.id).unwrap();
-        alert("Token cancelled successfully.");
-      } catch (err: any) {
-        alert(err?.data?.message || "Failed to cancel token");
-      }
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await cancelToken(activeToken.id).unwrap();
+      setActionSuccess("Token cancelled successfully.");
+    } catch (err: any) {
+      setActionError(err?.data?.message || "Failed to cancel token");
     }
   };
 
@@ -69,11 +80,13 @@ export default function CustomerDashboard() {
   };
 
   const handleGetToken = async (counterId: string, name: string) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await generateToken({ counterId }).unwrap();
-      alert(`New queue token successfully reserved for: ${name}. SMS confirmation dispatched to your registered number.`);
+      setActionSuccess(`Queue token successfully reserved for ${name}.`);
     } catch (err: any) {
-      alert(err?.data?.message || "Failed to get token");
+      setActionError(err?.data?.message || "Failed to get token");
     }
   };
 
@@ -90,6 +103,18 @@ export default function CustomerDashboard() {
       <main className="w-full pt-16 bg-surface min-h-screen">
         <div className="flex flex-col w-full">
           <div className="w-full max-w-7xl mx-auto px-margin py-space-lg flex flex-col gap-space-xl">
+            {actionError && (
+              <div className="p-space-md bg-error-container rounded-lg flex items-center justify-between text-on-error-container">
+                <span className="font-body-md text-body-md font-semibold">{actionError}</span>
+                <button onClick={() => setActionError(null)} className="text-on-error-container font-bold">✕</button>
+              </div>
+            )}
+            {actionSuccess && (
+              <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between">
+                <span className="font-body-md text-body-md font-semibold">{actionSuccess}</span>
+                <button onClick={() => setActionSuccess(null)} className="font-bold">✕</button>
+              </div>
+            )}
             {/* Header / Welcome Banner */}
             <div className="relative overflow-hidden rounded-xl bg-surface-container-low shadow-sm p-space-lg md:p-space-xl flex flex-col md:flex-row md:items-center justify-between gap-space-md">
               <div className="flex flex-col gap-space-xs z-10">
@@ -243,19 +268,24 @@ export default function CustomerDashboard() {
                         Optimal grouping
                       </span>
                     </div>
-                      <div className="rounded-lg bg-surface-container-low p-space-md flex flex-col justify-between">
-                        <span className="font-body-sm text-body-sm text-on-surface-variant">
-                          Currently Serving
-                        </span>
-                        <div className="flex items-baseline gap-1 mt-1">
-                          <span className="font-label-token-md text-label-token-md text-primary">
-                            -
-                          </span>
-                        </div>
-                        <span className="font-label-ui text-label-ui text-on-surface-variant mt-1">
-                          Data loading...
-                        </span>
-                      </div>
+                      {(() => {
+                        const activeCounter = counters.find((c: any) => c.id === activeToken.counterId);
+                        return (
+                          <div className="rounded-lg bg-surface-container-low p-space-md flex flex-col justify-between">
+                            <span className="font-body-sm text-body-sm text-on-surface-variant">
+                              Currently Serving
+                            </span>
+                            <div className="flex items-baseline gap-1 mt-1">
+                              <span className="font-label-token-md text-label-token-md text-primary">
+                                {activeCounter?.currentToken || "—"}
+                              </span>
+                            </div>
+                            <span className="font-label-ui text-label-ui text-on-surface-variant mt-1">
+                              {activeCounter ? `${activeCounter.name}` : "Live Status"}
+                            </span>
+                          </div>
+                        );
+                      })()}
                     <div className="rounded-lg bg-surface-container-low p-space-md flex flex-col justify-between">
                       <span className="font-body-sm text-body-sm text-on-surface-variant">
                         Estimated Wait
@@ -299,87 +329,101 @@ export default function CustomerDashboard() {
                         <span className="material-symbols-outlined text-[16px]">
                           sync
                         </span>{" "}
-                        Synced 8s ago
+                        Synced Live
                       </span>
                     </div>
                     {/* Pipeline Visual Nodes */}
                     <div className="p-space-md rounded-lg bg-surface-container flex flex-col gap-space-sm">
-                      <div className="flex items-center justify-between overflow-x-auto py-space-xs gap-space-sm">
-                        {/* Node 1 (Serving) */}
-                        <div className="flex flex-col items-center gap-1 min-w-[72px]">
-                          <span className="font-label-ui text-label-ui text-secondary uppercase font-semibold">
-                            Active
-                          </span>
-                          <div className="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center shadow-sm">
-                            <span className="material-symbols-outlined text-secondary text-[20px]">
-                              person
-                            </span>
+                      {(() => {
+                        const activeCounter = counters.find((c: any) => c.id === activeToken.counterId);
+                        const servingTokenNum = activeCounter?.currentToken || "—";
+                        const prefix = activeToken.counter?.prefix || "T";
+                        const currentSeq = activeToken.sequenceNumber || 1;
+                        
+                        // Calculate preceding ticket sequences dynamically
+                        const seq1 = Math.max(1, currentSeq - 3);
+                        const seq2 = Math.max(1, currentSeq - 2);
+                        const seq3 = Math.max(1, currentSeq - 1);
+
+                        return (
+                          <div className="flex items-center justify-between overflow-x-auto py-space-xs gap-space-sm">
+                            {/* Node 1 (Serving) */}
+                            <div className="flex flex-col items-center gap-1 min-w-[72px]">
+                              <span className="font-label-ui text-label-ui text-secondary uppercase font-semibold">
+                                Serving
+                              </span>
+                              <div className="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center shadow-sm">
+                                <span className="material-symbols-outlined text-secondary text-[20px]">
+                                  person
+                                </span>
+                              </div>
+                              <span className="font-label-token-sm text-label-token-sm text-on-surface font-semibold">
+                                {servingTokenNum}
+                              </span>
+                            </div>
+                            <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
+                            {/* Node 2 */}
+                            <div className="flex flex-col items-center gap-1 min-w-[72px]">
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
+                                Queue
+                              </span>
+                              <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
+                                <span className="font-label-token-sm text-label-token-sm">
+                                  {seq1}
+                                </span>
+                              </div>
+                              <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
+                                {prefix}-{String(seq1).padStart(3, "0")}
+                              </span>
+                            </div>
+                            <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
+                            {/* Node 3 */}
+                            <div className="flex flex-col items-center gap-1 min-w-[72px]">
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
+                                Queue
+                              </span>
+                              <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
+                                <span className="font-label-token-sm text-label-token-sm">
+                                  {seq2}
+                                </span>
+                              </div>
+                              <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
+                                {prefix}-{String(seq2).padStart(3, "0")}
+                              </span>
+                            </div>
+                            <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
+                            {/* Node 4 */}
+                            <div className="flex flex-col items-center gap-1 min-w-[72px]">
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
+                                Queue
+                              </span>
+                              <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
+                                <span className="font-label-token-sm text-label-token-sm">
+                                  {seq3}
+                                </span>
+                              </div>
+                              <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
+                                {prefix}-{String(seq3).padStart(3, "0")}
+                              </span>
+                            </div>
+                            <div className="flex-1 h-0.5 bg-primary min-w-[24px]"></div>
+                            {/* Node 5 (YOU) */}
+                            <div className="flex flex-col items-center gap-1 min-w-[90px]">
+                              <span className="font-label-ui text-label-ui text-primary uppercase font-bold">
+                                {activeToken.status === "SERVING" ? "Your Turn!" : "You"}
+                              </span>
+                              <div className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
+                                <span className="material-symbols-outlined text-[20px]">
+                                  how_to_reg
+                                </span>
+                              </div>
+                              <span className="font-label-token-sm text-label-token-sm text-primary font-bold">
+                                {activeToken.tokenNumber}
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-label-token-sm text-label-token-sm text-on-surface font-semibold">
-                            A-020
-                          </span>
-                        </div>
-                        <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
-                        {/* Node 2 */}
-                        <div className="flex flex-col items-center gap-1 min-w-[72px]">
-                          <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
-                            Wait 1
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
-                            <span className="font-label-token-sm text-label-token-sm">
-                              21
-                            </span>
-                          </div>
-                          <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
-                            A-021
-                          </span>
-                        </div>
-                        <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
-                        {/* Node 3 */}
-                        <div className="flex flex-col items-center gap-1 min-w-[72px]">
-                          <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
-                            Wait 2
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
-                            <span className="font-label-token-sm text-label-token-sm">
-                              22
-                            </span>
-                          </div>
-                          <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
-                            A-022
-                          </span>
-                        </div>
-                        <div className="flex-1 h-0.5 bg-surface-container-highest min-w-[24px]"></div>
-                        {/* Node 4 */}
-                        <div className="flex flex-col items-center gap-1 min-w-[72px]">
-                          <span className="font-label-ui text-label-ui text-on-surface-variant uppercase">
-                            Wait 3
-                          </span>
-                          <div className="w-8 h-8 rounded-full bg-surface-container-lowest flex items-center justify-center text-on-surface-variant">
-                            <span className="font-label-token-sm text-label-token-sm">
-                              23
-                            </span>
-                          </div>
-                          <span className="font-label-token-sm text-label-token-sm text-on-surface-variant">
-                            A-023
-                          </span>
-                        </div>
-                        <div className="flex-1 h-0.5 bg-primary min-w-[24px]"></div>
-                        {/* Node 5 (YOU) */}
-                        <div className="flex flex-col items-center gap-1 min-w-[90px]">
-                          <span className="font-label-ui text-label-ui text-primary uppercase font-bold">
-                            You (Next)
-                          </span>
-                          <div className="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-md">
-                            <span className="material-symbols-outlined text-[20px]">
-                              how_to_reg
-                            </span>
-                          </div>
-                          <span className="font-label-token-sm text-label-token-sm text-primary font-bold">
-                            {activeToken.tokenNumber}
-                          </span>
-                        </div>
-                      </div>
+                        );
+                      })()}
                       {/* Visual progress indicator */}
                       <div className="w-full bg-surface-container-highest h-2 rounded-full overflow-hidden mt-4">
                         <div

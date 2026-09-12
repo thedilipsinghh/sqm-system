@@ -1,8 +1,16 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 
 const getBaseUrl = () => {
-  const envUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-  const cleanUrl = envUrl.replace(/\/$/, "");
+  const isProduction = process.env.NODE_ENV === "production";
+  const rawUrl = isProduction
+    ? process.env.NEXT_PUBLIC_API_URL
+    : (process.env.LOCAL_URL || process.env.NEXT_PUBLIC_LOCAL_URL);
+
+  if (!rawUrl) {
+    throw new Error("API URL is not configured");
+  }
+
+  const cleanUrl = rawUrl.replace(/\/$/, "");
   return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
 };
 

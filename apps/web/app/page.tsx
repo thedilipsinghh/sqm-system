@@ -201,7 +201,7 @@ function HomeContent() {
                     <div className="w-2.5 h-2.5 rounded-full bg-secondary"></div>
                     <div className="flex flex-col">
                       <span className="font-body-md text-body-md font-semibold text-on-surface">
-                        Operational across 12 Service Desks
+                        Operational across {stats.totalCounters || counters.length} Service Desks
                       </span>
                       <span className="font-body-sm text-body-sm text-on-surface-variant">
                         Fleet telemetry synchronized 14s ago
@@ -353,43 +353,99 @@ function HomeContent() {
                   </div>
                 </div>
                 {/* Result Placeholder */}
-                {lookupResultVisible && (
-                  <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block">
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
-                      <div className="flex items-center gap-space-md">
-                        <div className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary uppercase">
-                          {lookupTokenValue || "A-024"}
-                        </div>
-                        <div>
-                          <div className="font-headline-sm text-headline-sm text-on-surface">
-                            Registration & Triage
+                {lookupResultVisible && (() => {
+                  const searchStr = lookupTokenValue.trim().toUpperCase();
+                  const matchedCounter = counters.find((c: any) => 
+                    searchStr.startsWith(c.prefix.toUpperCase()) || c.name.toUpperCase().includes(searchStr)
+                  );
+                  const isUserToken = activeToken && activeToken.tokenNumber.toUpperCase() === searchStr;
+
+                  if (isUserToken) {
+                    return (
+                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
+                          <div className="flex items-center gap-space-md">
+                            <div className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary uppercase">
+                              {activeToken.tokenNumber}
+                            </div>
+                            <div>
+                              <div className="font-headline-sm text-headline-sm text-on-surface">
+                                {activeToken.counter?.name || "Service Desk"}
+                              </div>
+                              <div className="font-body-sm text-body-sm text-on-surface-variant">
+                                Status: {activeToken.status}
+                              </div>
+                            </div>
                           </div>
-                          <div className="font-body-sm text-body-sm text-on-surface-variant">
-                            Estimated Serving Desk: Counter 01
+                          <div className="flex items-center gap-space-lg">
+                            <div>
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                Ahead of You
+                              </span>
+                              <span className="font-label-token-md text-label-token-md text-on-surface">
+                                {activeToken.peopleAhead} {activeToken.peopleAhead === 1 ? "person" : "people"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                Est. Call
+                              </span>
+                              <span className="font-label-token-md text-label-token-md text-secondary">
+                                {activeToken.estimatedWait}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-space-lg">
-                        <div>
-                          <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                            Ahead of You
-                          </span>
-                          <span className="font-label-token-md text-label-token-md text-on-surface">
-                            4 patients
-                          </span>
-                        </div>
-                        <div>
-                          <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                            Est. Call
-                          </span>
-                          <span className="font-label-token-md text-label-token-md text-secondary">
-                            ~8 mins
-                          </span>
+                    );
+                  }
+
+                  if (matchedCounter) {
+                    return (
+                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
+                          <div className="flex items-center gap-space-md">
+                            <div className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary uppercase">
+                              Prefix {matchedCounter.prefix}
+                            </div>
+                            <div>
+                              <div className="font-headline-sm text-headline-sm text-on-surface">
+                                {matchedCounter.name}
+                              </div>
+                              <div className="font-body-sm text-body-sm text-on-surface-variant">
+                                Currently Serving: {matchedCounter.currentToken}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-space-lg">
+                            <div>
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                In Queue
+                              </span>
+                              <span className="font-label-token-md text-label-token-md text-on-surface">
+                                {matchedCounter.waitingCount} {matchedCounter.waitingCount === 1 ? "person" : "people"}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                Est. Wait
+                              </span>
+                              <span className="font-label-token-md text-label-token-md text-secondary">
+                                {matchedCounter.estimatedWait}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                    );
+                  }
+
+                  return (
+                    <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block text-on-surface-variant font-body-sm">
+                      No active counter or ticket found matching reference code "{lookupTokenValue}".
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </section>
           )}
@@ -508,227 +564,221 @@ function HomeContent() {
             className="w-full max-w-7xl mx-auto px-margin py-space-xl"
             id="counters-matrix"
           >
-            {/* Header with Operational Filter Controls */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md mb-space-lg">
-              <div>
-                <div className="flex items-center gap-space-xs mb-1">
-                  <span className="w-2.5 h-2.5 rounded-full bg-secondary"></span>
-                  <span className="font-label-ui text-label-ui uppercase tracking-wider text-on-surface-variant">
-                    Active Operations Grid
-                  </span>
+            {/* Main Container Card */}
+            <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/40 shadow-md p-space-lg md:p-space-xl">
+              {/* Header with Operational Filter Controls */}
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-space-md pb-space-md mb-space-md border-b border-outline-variant/30">
+                <div>
+                  <div className="flex items-center gap-space-xs mb-1">
+                    <span className="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+                    <span className="font-label-ui text-label-ui uppercase tracking-wider text-on-surface-variant font-semibold">
+                      ACTIVE OPERATIONS GRID
+                    </span>
+                  </div>
+                  <h2 className="font-headline-lg text-headline-lg text-on-surface font-bold">
+                    Live Counter Directory
+                  </h2>
                 </div>
-                <h2 className="font-headline-lg text-headline-lg text-on-surface">
-                  Live Counter Directory
-                </h2>
-              </div>
-              <div className="flex flex-wrap items-center gap-space-sm">
-                <div className="flex items-center bg-surface-container-low p-0.5 rounded-lg">
-                  <button className="px-space-md py-1 rounded bg-surface-container-lowest text-primary font-label-ui text-label-ui shadow-sm">
-                    All Desks ({stats.totalCounters || counters.length})
-                  </button>
-                  <button className="px-space-md py-1 text-on-surface-variant font-label-ui text-label-ui hover:text-on-surface">
-                    Available Now
-                  </button>
+                <div className="flex flex-wrap items-center gap-space-sm">
+                  <div className="flex items-center bg-surface-container-low p-1 rounded-xl border border-outline-variant/20">
+                    <button className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest text-primary font-label-ui text-label-ui shadow-sm font-semibold">
+                      All Desks ({stats.totalCounters || counters.length})
+                    </button>
+                    <button className="px-space-md py-1.5 text-on-surface-variant font-label-ui text-label-ui hover:text-on-surface transition-colors font-medium">
+                      Available Now
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-space-xs px-space-md py-1.5 rounded-xl bg-surface-container-low text-on-surface-variant font-label-token-sm text-label-token-sm border border-outline-variant/20">
+                    <span className="material-symbols-outlined text-[16px] text-secondary">
+                      autorenew
+                    </span>
+                    Auto-updates every 10s
+                  </div>
                 </div>
-                <div className="flex items-center gap-space-xs px-space-md py-1 rounded-lg bg-surface-container-lowest text-on-surface-variant font-label-token-sm text-label-token-sm shadow-sm">
-                  <span className="material-symbols-outlined text-[16px] text-secondary">
-                    autorenew
-                  </span>
-                  Auto-updates every 10s
-                </div>
-              </div>
-            </div>
-
-            {/* Counters Stream Table / List */}
-            <div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden">
-              {/* Desktop Column Headers */}
-              <div className="hidden md:grid md:grid-cols-12 gap-space-md px-space-lg py-space-sm bg-surface-container-low font-label-ui text-label-ui uppercase text-on-surface-variant tracking-wider">
-                <div className="col-span-4">Service Counter / Prefix</div>
-                <div className="col-span-2">Currently Serving</div>
-                <div className="col-span-2">Queue Velocity</div>
-                <div className="col-span-2">Operational State</div>
-                <div className="col-span-2 text-right">Action Trigger</div>
               </div>
 
-              {/* Mapped Counters */}
-              {isLoading ? (
-                <div className="p-space-lg text-center text-on-surface-variant font-label-ui">Loading counters...</div>
-              ) : counters.map((counter: any, idx: number) => {
-                const isActive = counter.isActive;
-                const isPaused = counter.isPaused;
-                const isUnavailable = !isActive && !isPaused;
-                
-                return (
-                  <div
-                    key={counter.id}
-                    className={`p-space-lg md:px-space-lg md:py-space-md flex flex-col md:grid md:grid-cols-12 gap-space-md md:items-center ${
-                      isActive ? "hover:bg-surface-container-low/60 transition-colors" : ""
-                    } ${isPaused ? "bg-surface-container-low/30" : ""} ${
-                      isUnavailable ? "bg-surface-container-low/40" : ""
-                    }`}
-                  >
-                    {/* Counter Info */}
-                    <div className="md:col-span-4 flex items-center gap-space-md">
-                      <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center font-label-token-md text-label-token-md ${
-                          isActive
-                            ? "bg-surface-container text-primary"
-                            : "bg-surface-container-high " + (isUnavailable ? "text-outline" : "text-on-surface-variant")
-                        }`}
-                      >
-                        {counter.prefix}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-space-xs">
-                          <span
-                            className={`font-headline-sm text-headline-sm ${
-                              isUnavailable ? "text-outline" : "text-on-surface"
-                            }`}
-                          >
-                            Counter {idx + 1}: {counter.name}
-                          </span>
-                          <span
-                            className={`font-label-token-sm text-label-token-sm px-1.5 py-0.2 rounded bg-surface-container ${
-                              isUnavailable ? "text-outline" : "text-on-surface-variant"
-                            }`}
-                          >
-                            Prefix {counter.prefix}
-                          </span>
-                        </div>
-                        <span
-                          className={`font-body-sm text-body-sm ${
-                            isPaused
-                              ? "text-tertiary"
-                              : isUnavailable
-                              ? "text-outline"
-                              : "text-on-surface-variant"
-                          }`}
-                        >
-                          {counter.description}
-                        </span>
-                      </div>
-                    </div>
+              {/* Counters Stream Table / List */}
+              <div className="rounded-xl border border-outline-variant/30 overflow-hidden bg-surface-container-low/20">
+                {/* Desktop Column Headers */}
+                <div className="hidden md:grid md:grid-cols-12 gap-space-md px-space-lg py-3.5 bg-surface-container-low/80 border-b border-outline-variant/30 font-label-ui text-[12px] uppercase text-on-surface font-bold tracking-wider">
+                  <div className="col-span-4">Service Counter / Prefix</div>
+                  <div className="col-span-2">Currently Serving</div>
+                  <div className="col-span-2">Queue Velocity</div>
+                  <div className="col-span-2">Operational State</div>
+                  <div className="col-span-2 text-right">Action Trigger</div>
+                </div>
 
-                    {/* Serving Badge */}
-                    <div className="md:col-span-2 flex items-center justify-between md:justify-start gap-space-md">
-                      <span
-                        className={`md:hidden font-body-sm text-body-sm ${
-                          isUnavailable ? "text-outline" : "text-on-surface-variant"
-                        }`}
-                      >
-                        Now Serving:
-                      </span>
-                      <span
-                        className={`font-label-token-md text-label-token-md px-space-sm py-1 rounded ${
-                          isActive
-                            ? "bg-surface-container-low text-primary"
-                            : isPaused
-                            ? "bg-surface-container text-on-surface"
-                            : "bg-surface-container text-outline"
-                        }`}
-                      >
-                        {counter.currentToken}
-                      </span>
-                    </div>
-
-                    {/* Waiting / Velocity */}
-                    <div className="md:col-span-2 flex items-center justify-between md:justify-start gap-space-md">
-                      <span
-                        className={`md:hidden font-body-sm text-body-sm ${
-                          isUnavailable ? "text-outline" : "text-on-surface-variant"
-                        }`}
-                      >
-                        Load:
-                      </span>
-                      <div className="flex flex-col">
-                        <span
-                          className={`font-body-md text-body-md ${
-                            isActive
-                              ? "font-semibold text-on-surface"
+                {/* Mapped Counters */}
+                {isLoading ? (
+                  <div className="p-space-lg text-center text-on-surface-variant font-label-ui">Loading counters...</div>
+                ) : counters.map((counter: any, idx: number) => {
+                  const isActive = counter.isActive;
+                  const isPaused = counter.isPaused;
+                  const isUnavailable = !isActive && !isPaused;
+                  
+                  return (
+                    <div
+                      key={counter.id}
+                      className={`p-space-lg md:px-space-lg md:py-4 flex flex-col md:grid md:grid-cols-12 gap-space-md md:items-center border-b border-outline-variant/20 last:border-b-0 transition-colors ${
+                        isActive && !isPaused
+                          ? "bg-surface-container-lowest hover:bg-surface-container-low/50"
+                          : isPaused
+                          ? "bg-surface-container-low/40"
+                          : "bg-surface-container-low/60"
+                      }`}
+                    >
+                      {/* Counter Info & Prefix */}
+                      <div className="md:col-span-4 flex items-center gap-space-md">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center font-label-token-md text-label-token-md font-bold shadow-sm border ${
+                            isActive && !isPaused
+                              ? "bg-primary-container/20 border-primary/30 text-primary"
                               : isPaused
-                              ? "font-semibold text-on-surface-variant"
-                              : "text-outline"
+                              ? "bg-tertiary-fixed/40 border-tertiary/30 text-tertiary"
+                              : "bg-surface-container-high border-outline-variant/30 text-outline"
                           }`}
                         >
-                          {counter.waitingCount} {counter.waitingCount === 1 ? 'person' : 'people'}
-                        </span>
+                          {counter.prefix}
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-space-xs flex-wrap">
+                            <span
+                              className={`font-headline-sm text-headline-sm font-semibold ${
+                                isUnavailable ? "text-outline" : "text-on-surface"
+                              }`}
+                            >
+                              Counter {idx + 1}: {counter.name}
+                            </span>
+                          </div>
+                          {counter.description && (
+                            <span
+                              className={`font-body-sm text-body-sm mt-0.5 ${
+                                isPaused
+                                  ? "text-tertiary font-medium"
+                                  : isUnavailable
+                                  ? "text-outline"
+                                  : "text-on-surface-variant"
+                              }`}
+                            >
+                              {counter.description}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Currently Serving */}
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-start gap-space-md">
                         <span
-                          className={`font-body-sm text-body-sm ${
+                          className={`md:hidden font-label-ui text-label-ui uppercase tracking-wider ${
                             isUnavailable ? "text-outline" : "text-on-surface-variant"
                           }`}
                         >
-                          Est. Wait:{" "}
-                          {isActive ? (
-                            <strong className="text-on-surface">
-                              {counter.estimatedWait}
-                            </strong>
-                          ) : (
-                            counter.estimatedWait
-                          )}
+                          Currently Serving:
+                        </span>
+                        <div className="px-3 py-1.5 rounded-lg bg-surface-container-low border border-outline-variant/20 inline-flex items-center min-w-[70px] justify-center">
+                          <span
+                            className={`font-label-token-md text-label-token-md font-bold ${
+                              isActive && !isPaused
+                                ? "text-primary"
+                                : "text-on-surface-variant"
+                            }`}
+                          >
+                            {counter.currentToken || "—"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Queue Velocity */}
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-start gap-space-md">
+                        <span
+                          className={`md:hidden font-label-ui text-label-ui uppercase tracking-wider ${
+                            isUnavailable ? "text-outline" : "text-on-surface-variant"
+                          }`}
+                        >
+                          Queue Velocity:
+                        </span>
+                        <div className="flex flex-col">
+                          <span
+                            className={`font-headline-sm text-headline-sm font-bold ${
+                              isActive && !isPaused
+                                ? "text-on-surface"
+                                : "text-on-surface-variant"
+                            }`}
+                          >
+                            {counter.waitingCount || 0} {counter.waitingCount === 1 ? 'person' : 'people'}
+                          </span>
+                          <span
+                            className={`font-body-sm text-body-sm ${
+                              isUnavailable ? "text-outline" : "text-on-surface-variant"
+                            }`}
+                          >
+                            Est. Wait:{" "}
+                            <span className="font-semibold text-on-surface">
+                              {counter.estimatedWait || "0 mins"}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Operational State */}
+                      <div className="md:col-span-2 flex items-center justify-between md:justify-start">
+                        <span
+                          className={`md:hidden font-label-ui text-label-ui uppercase tracking-wider ${
+                            isUnavailable ? "text-outline" : "text-on-surface-variant"
+                          }`}
+                        >
+                          Operational State:
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-label-ui text-[12px] uppercase font-bold tracking-wider ${
+                            isActive && !isPaused
+                              ? "bg-secondary-container/60 text-secondary border border-secondary/20"
+                              : isPaused
+                              ? "bg-tertiary-fixed/60 text-tertiary border border-tertiary/20"
+                              : "bg-surface-container text-outline border border-outline-variant/30"
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isActive && !isPaused
+                                ? "bg-secondary shadow-[0_0_6px_rgba(var(--color-secondary),0.6)]"
+                                : isPaused
+                                ? "bg-tertiary"
+                                : "bg-outline"
+                            }`}
+                          ></span>
+                          {isActive && !isPaused ? "Active" : isPaused ? "Queue Paused" : "Unavailable"}
                         </span>
                       </div>
-                    </div>
 
-                    {/* Status */}
-                    <div className="md:col-span-2 flex items-center justify-between md:justify-start">
-                      <span
-                        className={`md:hidden font-body-sm text-body-sm ${
-                          isUnavailable ? "text-outline" : "text-on-surface-variant"
-                        }`}
-                      >
-                        Status:
-                      </span>
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-space-sm py-1 rounded-full font-label-ui text-label-ui ${
-                          isActive
-                            ? "bg-secondary-container text-on-secondary-container"
-                            : isPaused
-                            ? "bg-tertiary-fixed text-on-tertiary-fixed-variant"
-                            : "bg-surface-container text-outline"
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isActive
-                              ? "bg-secondary"
-                              : isPaused
-                              ? "bg-tertiary"
-                              : "bg-outline"
-                          }`}
-                        ></span>
-                        {isActive && !isPaused ? "Active" : isPaused ? "Queue Paused" : "Unavailable"}
-                      </span>
+                      {/* Action Trigger */}
+                      <div className="md:col-span-2 flex items-center justify-end">
+                        {isActive && !isPaused ? (
+                          <button
+                            onClick={() => handleGetTokenClick(counter)}
+                            className="w-full md:w-auto px-space-md py-2.5 rounded-xl bg-primary text-on-primary font-label-ui text-label-ui uppercase tracking-wider hover:bg-primary-container hover:text-on-primary-container transition-all shadow-sm flex items-center justify-center gap-1.5 font-bold active:scale-[0.98]"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              add_circle
+                            </span>
+                            Get Token
+                          </button>
+                        ) : (
+                          <button
+                            disabled
+                            className="w-full md:w-auto px-space-md py-2.5 rounded-xl bg-surface-container-high text-outline font-label-ui text-label-ui uppercase tracking-wider cursor-not-allowed flex items-center justify-center gap-1.5 opacity-70"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">
+                              {isPaused ? "lock" : "block"}
+                            </span>
+                            {isPaused ? "Queue Paused" : "Unavailable"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-
-                    {/* Action */}
-                    <div className="md:col-span-2 flex items-center justify-end">
-                      {isActive ? (
-                        <button
-                          onClick={() => handleGetTokenClick(counter)}
-                          className="w-full md:w-auto px-space-md py-2 rounded-lg bg-primary-container text-on-primary font-headline-sm text-headline-sm hover:bg-primary transition-colors flex items-center justify-center gap-1"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            add_circle
-                          </span>
-                          Get Token
-                        </button>
-                      ) : (
-                        <button
-                          disabled
-                          className={`w-full md:w-auto px-space-md py-2 rounded-lg bg-surface-container text-outline font-headline-sm text-headline-sm cursor-not-allowed flex items-center justify-center gap-1 ${
-                            isPaused ? "opacity-75" : "opacity-60"
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[18px]">
-                            {isPaused ? "lock" : "block"}
-                          </span>
-                          {isPaused ? "Get Token" : "Unavailable"}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </section>
 

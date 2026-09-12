@@ -90,7 +90,12 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
     const [user] = await db.select({ id: users.id, name: users.name, email: users.email, role: users.role }).from(users).where(eq(users.id, userId));
     
     if (!user) {
-      res.status(404).json({ success: false, message: "User not found" });
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: env.NODE_ENV === "production",
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      });
+      res.status(401).json({ success: false, message: "User not found" });
       return;
     }
     res.status(200).json({ success: true, user });

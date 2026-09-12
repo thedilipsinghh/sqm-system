@@ -15,6 +15,11 @@ export const authenticate = (req: Request, res: Response, next: NextFunction): v
     (req as any).user = decoded;
     next();
   } catch (error) {
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: env.NODE_ENV === "production",
+      sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    });
     res.status(401).json({ success: false, message: "Unauthorized: Invalid token" });
   }
 };

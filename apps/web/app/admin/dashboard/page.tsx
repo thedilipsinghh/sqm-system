@@ -29,14 +29,15 @@ export default function AdminDashboardPage() {
     }
   }, [isUserLoading, isUserError, userResponse, router]);
 
-  const [syncSeconds, setSyncSeconds] = useState(4);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCounter, setNewCounter] = useState({ name: "", prefix: "", description: "" });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined, { pollingInterval: 2000 });
+  const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined);
   const queues = countersRes?.data || [];
 
-  const { data: statsRes } = useGetDashboardStatsQuery(undefined, { pollingInterval: 5000 });
+  const { data: statsRes } = useGetDashboardStatsQuery(undefined);
   const stats = statsRes?.data || {
     totalCounters: 0,
     activeCounters: 0,
@@ -55,102 +56,112 @@ export default function AdminDashboardPage() {
   const [pauseCounter] = usePauseCounterMutation();
   const [resumeCounter] = useResumeCounterMutation();
   const [createCounter] = useCreateCounterMutation();
-  const [updateCounter] = useUpdateCounterMutation();
   const [deleteCounter] = useDeleteCounterMutation();
   const [activateCounter] = useActivateCounterMutation();
   const [deactivateCounter] = useDeactivateCounterMutation();
 
-  // Sync Timer Simulation
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSyncSeconds((prev) => (prev >= 10 ? 1 : prev + 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const handleCallNext = async (counterId: string) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await callNextToken(counterId).unwrap();
+      setActionSuccess("Called next token.");
     } catch (err: any) {
-      alert(err?.data?.message || "Failed to call next token");
+      setActionError(err?.data?.message || "Failed to call next token");
     }
   };
 
   const handleCompleteToken = async (tokenId: string) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       await completeToken(tokenId).unwrap();
+      setActionSuccess("Token marked as complete.");
     } catch (err: any) {
-      alert(err?.data?.message || "Failed to complete token");
+      setActionError(err?.data?.message || "Failed to complete token");
     }
   };
 
   const handleSkipToken = async (tokenId: string) => {
-    if (confirm("Are you sure you want to skip this token?")) {
-      try {
-        await skipToken(tokenId).unwrap();
-      } catch (err: any) {
-        alert(err?.data?.message || "Failed to skip token");
-      }
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await skipToken(tokenId).unwrap();
+      setActionSuccess("Token skipped.");
+    } catch (err: any) {
+      setActionError(err?.data?.message || "Failed to skip token");
     }
   };
 
   const handleTogglePause = async (counter: any) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       if (counter.isPaused) {
         await resumeCounter(counter.id).unwrap();
+        setActionSuccess(`Resumed counter ${counter.name}.`);
       } else {
         await pauseCounter(counter.id).unwrap();
+        setActionSuccess(`Paused counter ${counter.name}.`);
       }
     } catch (err: any) {
-      alert("Failed to toggle counter state");
+      setActionError("Failed to toggle counter state");
     }
   };
 
-  const handlePauseAll = () => {
-    if (
-      window.confirm(
-        "EMERGENCY ACTION: Are you sure you want to pause all active queues?"
-      )
-    ) {
-      alert("All queues paused.");
+  const handlePauseAll = async () => {
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      const activeQueues = queues.filter((q: any) => q.isActive && !q.isPaused);
+      await Promise.all(activeQueues.map((q: any) => pauseCounter(q.id).unwrap()));
+      setActionSuccess("Emergency pause applied to active queues.");
+    } catch (err: any) {
+      setActionError("Failed to pause all active queues.");
     }
   };
 
   const handleToggleActive = async (counter: any) => {
+    setActionError(null);
+    setActionSuccess(null);
     try {
       if (counter.isActive) {
-        if (confirm("Are you sure you want to deactivate this counter? It will no longer accept new tokens.")) {
-          await deactivateCounter(counter.id).unwrap();
-        }
+        await deactivateCounter(counter.id).unwrap();
+        setActionSuccess(`Deactivated counter ${counter.name}.`);
       } else {
         await activateCounter(counter.id).unwrap();
+        setActionSuccess(`Activated counter ${counter.name}.`);
       }
     } catch (err: any) {
-      alert("Failed to toggle counter active state");
+      setActionError("Failed to toggle counter active state");
     }
   };
 
   const handleDeleteCounter = async (id: string) => {
-    if (confirm("Are you sure you want to delete this counter? This action cannot be undone.")) {
-      try {
-        await deleteCounter(id).unwrap();
-      } catch (err: any) {
-        alert(err?.data?.message || "Failed to delete counter. Ensure it has no associated tokens.");
-      }
+    setActionError(null);
+    setActionSuccess(null);
+    try {
+      await deleteCounter(id).unwrap();
+      setActionSuccess("Counter deleted successfully.");
+    } catch (err: any) {
+      setActionError(err?.data?.message || "Failed to delete counter.");
     }
   };
 
   const handleSaveCounter = async () => {
+    setActionError(null);
+    setActionSuccess(null);
     if (!newCounter.name || !newCounter.prefix) {
-      alert("Name and prefix are required");
+      setActionError("Name and prefix are required");
       return;
     }
     try {
       await createCounter(newCounter).unwrap();
       setIsModalOpen(false);
       setNewCounter({ name: "", prefix: "", description: "" });
+      setActionSuccess("Counter created successfully.");
     } catch (err: any) {
-      alert(err?.data?.message || "Failed to create counter");
+      setActionError(err?.data?.message || "Failed to create counter");
     }
   };
 
@@ -162,6 +173,18 @@ export default function AdminDashboardPage() {
         <main className="relative pt-16 w-full px-margin bg-surface">
           <div className="flex flex-col w-full">
             <div className="py-space-md flex flex-col gap-space-lg">
+              {actionError && (
+                <div className="p-space-md bg-error-container rounded-lg flex items-center justify-between text-on-error-container">
+                  <span className="font-body-md text-body-md font-semibold">{actionError}</span>
+                  <button onClick={() => setActionError(null)} className="text-on-error-container font-bold">✕</button>
+                </div>
+              )}
+              {actionSuccess && (
+                <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between">
+                  <span className="font-body-md text-body-md font-semibold">{actionSuccess}</span>
+                  <button onClick={() => setActionSuccess(null)} className="font-bold">✕</button>
+                </div>
+              )}
               {/* Header Details */}
               <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-space-md">
                 <div className="flex flex-col gap-1">
@@ -177,15 +200,12 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-space-sm flex-wrap mt-0.5">
                     <div className="flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1 rounded-lg">
                       <span className="material-symbols-outlined text-primary text-[18px]">
-                        local_hospital
+                        hub
                       </span>
                       <span className="font-headline-sm text-headline-sm text-on-surface">
-                        Central City Hospital & Medical Center - Main Clinic
+                        Smart Queue Management System
                       </span>
                     </div>
-                    <span className="font-label-token-sm text-label-token-sm px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
-                      LOC-ID #4092
-                    </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-space-sm flex-wrap">
@@ -194,24 +214,13 @@ export default function AdminDashboardPage() {
                       tune
                     </span>
                     <span className="font-label-ui text-label-ui font-medium">
-                      All Counters (12)
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1.5 rounded-lg text-on-surface">
-                    <span className="material-symbols-outlined text-[16px] text-outline">
-                      schedule
-                    </span>
-                    <span className="font-label-ui text-label-ui">
-                      Morning Shift (08:00 - 16:00)
+                      All Counters ({stats.totalCounters || queues.length})
                     </span>
                   </div>
                   <div className="flex items-center gap-space-xs px-space-sm py-1.5 rounded-lg bg-surface-container-high text-on-surface">
                     <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
                     <span className="font-label-ui text-label-ui text-on-surface-variant">
-                      Live Feed Active • Last updated{" "}
-                      <span className="font-semibold text-on-surface">
-                        {syncSeconds}s ago
-                      </span>
+                      Live Feed Active
                     </span>
                   </div>
                 </div>
@@ -258,7 +267,7 @@ export default function AdminDashboardPage() {
                     </span>
                   </div>
                   <div className="w-full bg-surface-container-low h-1 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-secondary h-full" style={{ width: "75%" }}></div>
+                    <div className="bg-secondary h-full" style={{ width: stats.totalCounters ? `${Math.min((stats.activeCounters / stats.totalCounters) * 100, 100)}%` : "0%" }}></div>
                   </div>
                 </div>
                 <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
@@ -278,7 +287,7 @@ export default function AdminDashboardPage() {
                   <div className="w-full bg-surface-container-low h-1 rounded-full mt-3 overflow-hidden">
                     <div
                       className="bg-tertiary-container h-full"
-                      style={{ width: "58%" }}
+                      style={{ width: stats.tokensToday ? `${Math.min((stats.waiting / stats.tokensToday) * 100, 100)}%` : "0%" }}
                     ></div>
                   </div>
                 </div>
@@ -302,7 +311,7 @@ export default function AdminDashboardPage() {
                   <div className="w-full bg-surface-container-low h-1 rounded-full mt-3 overflow-hidden">
                     <div
                       className="bg-primary-container h-full"
-                      style={{ width: "100%" }}
+                      style={{ width: stats.activeCounters ? `${Math.min((stats.serving / stats.activeCounters) * 100, 100)}%` : "0%" }}
                     ></div>
                   </div>
                 </div>
@@ -321,7 +330,7 @@ export default function AdminDashboardPage() {
                     </span>
                   </div>
                   <div className="w-full bg-surface-container-low h-1 rounded-full mt-3 overflow-hidden">
-                    <div className="bg-surface-dim h-full" style={{ width: "82%" }}></div>
+                    <div className="bg-surface-dim h-full" style={{ width: stats.tokensToday ? "100%" : "0%" }}></div>
                   </div>
                 </div>
                 <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
@@ -339,7 +348,7 @@ export default function AdminDashboardPage() {
                   <div className="w-full bg-surface-container-low h-1 rounded-full mt-3 overflow-hidden">
                     <div
                       className="bg-secondary-fixed-dim h-full"
-                      style={{ width: "68%" }}
+                      style={{ width: stats.tokensToday ? `${Math.min((stats.completed / stats.tokensToday) * 100, 100)}%` : "0%" }}
                     ></div>
                   </div>
                 </div>
@@ -356,18 +365,6 @@ export default function AdminDashboardPage() {
                       add_circle
                     </span>
                     <span>Add New Counter</span>
-                  </button>
-                  <button className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors font-label-ui text-label-ui">
-                    <span className="material-symbols-outlined text-[18px] text-primary">
-                      campaign
-                    </span>
-                    <span>Broadcast Announcement</span>
-                  </button>
-                  <button className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-surface-container-low hover:bg-surface-container text-on-surface transition-colors font-label-ui text-label-ui">
-                    <span className="material-symbols-outlined text-[18px] text-outline">
-                      download
-                    </span>
-                    <span>Export CSV Log</span>
                   </button>
                 </div>
                 <div className="flex items-center gap-space-xs">
@@ -396,15 +393,6 @@ export default function AdminDashboardPage() {
                         <h2 className="font-headline-md text-headline-md text-on-surface">
                           Live Counter Dispatch Terminal
                         </h2>
-                        <span className="font-label-ui text-label-ui px-2 py-0.5 rounded-md bg-surface-container text-on-surface-variant">
-                          Real-Time Sync: WebSocket ON
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-space-xs text-body-sm text-outline">
-                        <span>Auto-refresh</span>
-                        <div className="w-8 h-4 bg-secondary rounded-full p-0.5 flex justify-end cursor-pointer">
-                          <div className="w-3 h-3 rounded-full bg-on-secondary"></div>
-                        </div>
                       </div>
                     </div>
                     <div className="overflow-x-auto w-full">
@@ -603,7 +591,7 @@ export default function AdminDashboardPage() {
                       </table>
                     </div>
                     <div className="p-space-sm bg-surface-container-low/50 flex items-center justify-between text-body-sm text-on-surface-variant px-space-md">
-                      <span>Showing 6 of 12 configured counters</span>
+                      <span>Showing {queues.length} configured counters</span>
                       <div className="flex items-center gap-2">
                         <button className="p-1 rounded hover:bg-surface-container text-outline">
                           <span className="material-symbols-outlined text-[18px]">
