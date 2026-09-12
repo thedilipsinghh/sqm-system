@@ -14,22 +14,44 @@ const getBaseUrl = () => {
   return cleanUrl.endsWith("/api") ? cleanUrl : `${cleanUrl}/api`;
 };
 
+const rawBaseQuery = fetchBaseQuery({
+  baseUrl: getBaseUrl(),
+  // Ensure cookies are sent with requests
+  credentials: "include",
+  prepareHeaders: (headers) => {
+    if (typeof window !== "undefined") {
+      const token = localStorage.getItem("token");
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    }
+    return headers;
+  },
+});
+
 export const baseApi = createApi({
   reducerPath: "api",
-  baseQuery: fetchBaseQuery({
-    baseUrl: getBaseUrl(),
-    // Ensure cookies are sent with requests
-    credentials: "include",
-    prepareHeaders: (headers) => {
-      if (typeof window !== "undefined") {
-        const token = localStorage.getItem("token");
-        if (token) {
-          headers.set("Authorization", `Bearer ${token}`);
+  baseQuery: async (args, api, extraOptions) => {
+    const result = await rawBaseQuery(args, api, extraOptions);
+
+    if (typeof window !== "undefined") {
+      if (result.data) {
+        const data = result.data as any;
+        if (data.token) {
+          localStorage.setItem("token", data.token);
         }
       }
-      return headers;
-    },
-  }),
+
+      if (result.error && result.error.status === 401) {
+        const url = typeof args === "string" ? args : args.url;
+        if (!url.includes("/auth/login") && !url.includes("/auth/register")) {
+          localStorage.removeItem("token");
+        }
+      }
+    }
+
+    return result;
+  },
   tagTypes: ["User", "Counter", "Token", "Dashboard"],
   endpoints: () => ({}),
 });
