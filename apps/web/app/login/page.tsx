@@ -4,6 +4,7 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useLoginMutation } from "../../store/api/authApi";
+import { formatApiError, FormattedApiError } from "../../lib/errorUtils";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 
@@ -13,24 +14,22 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showError, setShowError] = useState(false);
+  const [errorState, setErrorState] = useState<FormattedApiError | null>(null);
   const [emailError, setEmailError] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
   const [login, { isLoading }] = useLoginMutation();
 
+  const isExpiredSession = searchParams.get("reason") === "expired";
+  const isRestricted = searchParams.get("reason") === "restricted";
+
   const isCustomer = activeRole === "customer";
 
   const handleRoleSwitch = (role: "customer" | "operator") => {
     setActiveRole(role);
-    setShowError(false);
-    
-    if (role === "customer") {
-      setEmail("");
-    } else {
-      setEmail("");
-    }
+    setErrorState(null);
+    setEmail("");
   };
 
   const validateEmail = (val: string) => {
@@ -48,12 +47,12 @@ function LoginContent() {
     setEmail(emailVal);
     setPassword(passVal);
     validateEmail(emailVal);
-    setShowError(false);
+    setErrorState(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setShowError(false);
+    setErrorState(null);
     setIsSubmitting(true);
 
     try {
@@ -61,11 +60,11 @@ function LoginContent() {
       if (res?.token && typeof window !== "undefined") {
         localStorage.setItem("token", res.token);
       }
+      const redirectUrl = searchParams.get("redirect");
+      const counterId = searchParams.get("counterId");
       if (res.user.role === "ADMIN") {
-        router.push("/admin/dashboard");
+        router.push(redirectUrl || "/admin/dashboard");
       } else {
-        const redirectUrl = searchParams.get("redirect");
-        const counterId = searchParams.get("counterId");
         if (redirectUrl) {
           router.push(`${redirectUrl}${counterId ? `?counterId=${counterId}` : ""}`);
         } else {
@@ -73,7 +72,8 @@ function LoginContent() {
         }
       }
     } catch (err) {
-      setShowError(true);
+      const formatted = formatApiError(err, "login");
+      setErrorState(formatted);
     } finally {
       setIsSubmitting(false);
     }
@@ -226,25 +226,57 @@ function LoginContent() {
                   </p>
                 </div>
 
+                {/* Session Expired / Restricted Alert Banner */}
+                {isExpiredSession && !errorState && (
+                  <div className="mb-space-md p-space-md bg-tertiary-container text-on-tertiary-container rounded-lg flex items-start gap-space-sm shadow-sm">
+                    <span className="material-symbols-outlined text-tertiary shrink-0">
+                      schedule
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-label-ui text-label-ui font-bold">
+                        Session expired
+                      </p>
+                      <p className="font-body-sm text-body-sm mt-0.5">
+                        Your session has expired. Please sign in again to continue.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {isRestricted && !errorState && (
+                  <div className="mb-space-md p-space-md bg-error-container text-on-error-container rounded-lg flex items-start gap-space-sm shadow-sm">
+                    <span className="material-symbols-outlined text-error shrink-0">
+                      lock
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-label-ui text-label-ui font-bold">
+                        Access restricted
+                      </p>
+                      <p className="font-body-sm text-body-sm mt-0.5">
+                        You don't have permission to access that page. Please sign in with an authorized account.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 {/* Dynamic Error Banner */}
-                {showError && (
-                  <div className="mb-space-md p-space-md bg-error-container rounded-lg flex items-start gap-space-sm text-on-error-container">
+                {errorState && (
+                  <div className="mb-space-md p-space-md bg-error-container rounded-lg flex items-start gap-space-sm text-on-error-container shadow-sm">
                     <span className="material-symbols-outlined text-error shrink-0">
                       error
                     </span>
                     <div className="flex-1">
                       <p className="font-label-ui text-label-ui font-bold">
-                        Authentication failed
+                        {errorState.title}
                       </p>
                       <p className="font-body-sm text-body-sm mt-0.5">
-                        Invalid email or password. Please check your credentials and try
-                        again.
+                        {errorState.message}
                       </p>
                     </div>
                     <button
                       type="button"
-                      onClick={() => setShowError(false)}
-                      className="text-on-error-container hover:opacity-75"
+                      onClick={() => setErrorState(null)}
+                      className="text-on-error-container hover:opacity-75 p-1"
                     >
                       <span className="material-symbols-outlined text-sm">close</span>
                     </button>

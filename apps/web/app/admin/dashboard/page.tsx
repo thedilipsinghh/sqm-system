@@ -17,6 +17,7 @@ import {
 import { useCallNextTokenMutation, useCompleteTokenMutation, useSkipTokenMutation } from "../../../store/api/tokenApi";
 import { useGetDashboardStatsQuery } from "../../../store/api/dashboardApi";
 import { useGetMeQuery } from "../../../store/api/authApi";
+import { formatApiError, FormattedApiError } from "../../../lib/errorUtils";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -25,13 +26,14 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const role = userResponse?.user?.role || userResponse?.data?.role;
     if (!isUserLoading && (isUserError || role !== "ADMIN")) {
-      router.push("/login");
+      const reason = role && role !== "ADMIN" ? "restricted" : "expired";
+      router.push(`/login?redirect=%2Fadmin%2Fdashboard&reason=${reason}`);
     }
   }, [isUserLoading, isUserError, userResponse, router]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newCounter, setNewCounter] = useState({ name: "", prefix: "", description: "" });
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<FormattedApiError | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined);
@@ -67,7 +69,7 @@ export default function AdminDashboardPage() {
       await callNextToken(counterId).unwrap();
       setActionSuccess("Called next token.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to call next token");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -78,7 +80,7 @@ export default function AdminDashboardPage() {
       await completeToken(tokenId).unwrap();
       setActionSuccess("Token marked as complete.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to complete token");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -89,7 +91,7 @@ export default function AdminDashboardPage() {
       await skipToken(tokenId).unwrap();
       setActionSuccess("Token skipped.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to skip token");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -105,7 +107,7 @@ export default function AdminDashboardPage() {
         setActionSuccess(`Paused counter ${counter.name}.`);
       }
     } catch (err: any) {
-      setActionError("Failed to toggle counter state");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -117,7 +119,7 @@ export default function AdminDashboardPage() {
       await Promise.all(activeQueues.map((q: any) => pauseCounter(q.id).unwrap()));
       setActionSuccess("Emergency pause applied to active queues.");
     } catch (err: any) {
-      setActionError("Failed to pause all active queues.");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -133,7 +135,7 @@ export default function AdminDashboardPage() {
         setActionSuccess(`Activated counter ${counter.name}.`);
       }
     } catch (err: any) {
-      setActionError("Failed to toggle counter active state");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -144,7 +146,7 @@ export default function AdminDashboardPage() {
       await deleteCounter(id).unwrap();
       setActionSuccess("Counter deleted successfully.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to delete counter.");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -152,7 +154,10 @@ export default function AdminDashboardPage() {
     setActionError(null);
     setActionSuccess(null);
     if (!newCounter.name || !newCounter.prefix) {
-      setActionError("Name and prefix are required");
+      setActionError({
+        title: "Validation error",
+        message: "Counter name and prefix are required.",
+      });
       return;
     }
     try {
@@ -161,7 +166,7 @@ export default function AdminDashboardPage() {
       setNewCounter({ name: "", prefix: "", description: "" });
       setActionSuccess("Counter created successfully.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to create counter");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -174,9 +179,15 @@ export default function AdminDashboardPage() {
           <div className="flex flex-col w-full">
             <div className="py-space-md flex flex-col gap-space-lg">
               {actionError && (
-                <div className="p-space-md bg-error-container rounded-lg flex items-center justify-between text-on-error-container">
-                  <span className="font-body-md text-body-md font-semibold">{actionError}</span>
-                  <button onClick={() => setActionError(null)} className="text-on-error-container font-bold">✕</button>
+                <div className="p-space-md bg-error-container rounded-lg flex items-start justify-between text-on-error-container shadow-sm">
+                  <div className="flex items-start gap-space-xs">
+                    <span className="material-symbols-outlined text-error shrink-0">error</span>
+                    <div>
+                      <p className="font-label-ui font-bold">{actionError.title}</p>
+                      <p className="font-body-sm text-body-sm mt-0.5">{actionError.message}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setActionError(null)} className="text-on-error-container font-bold p-1">✕</button>
                 </div>
               )}
               {actionSuccess && (

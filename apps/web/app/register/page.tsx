@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRegisterMutation } from "../../store/api/authApi";
+import { formatApiError, FormattedApiError } from "../../lib/errorUtils";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 
 export default function RegisterPage() {
   const [showToast, setShowToast] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+  const [errorState, setErrorState] = useState<FormattedApiError | null>(null);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,7 +23,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMsg("");
+    setErrorState(null);
     
     try {
       const res = await register({ name, email, password, confirmPassword }).unwrap();
@@ -33,9 +34,10 @@ export default function RegisterPage() {
       setTimeout(() => {
         setShowToast(false);
         router.push("/dashboard");
-      }, 2000);
+      }, 1500);
     } catch (err: any) {
-      setErrorMsg(err?.data?.message || "Registration failed");
+      const formatted = formatApiError(err, "register");
+      setErrorState(formatted);
     }
   };
 
@@ -194,10 +196,22 @@ export default function RegisterPage() {
                   </p>
                 </div>
 
-                {errorMsg && (
-                  <div className="mb-4 p-3 bg-error-container text-on-error-container rounded-lg font-body-sm flex items-center gap-2">
-                    <span className="material-symbols-outlined text-sm">warning</span>
-                    {errorMsg}
+                {errorState && (
+                  <div className="mb-4 p-4 bg-error-container text-on-error-container rounded-lg font-body-sm flex items-start justify-between gap-3 shadow-sm">
+                    <div className="flex items-start gap-2">
+                      <span className="material-symbols-outlined text-error text-lg shrink-0">error</span>
+                      <div>
+                        <p className="font-label-ui font-bold">{errorState.title}</p>
+                        <p className="font-body-sm mt-0.5">{errorState.message}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setErrorState(null)}
+                      className="text-on-error-container hover:opacity-75 p-1"
+                    >
+                      <span className="material-symbols-outlined text-sm">close</span>
+                    </button>
                   </div>
                 )}
 

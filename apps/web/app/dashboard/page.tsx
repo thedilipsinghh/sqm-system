@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatApiError, FormattedApiError } from "../../lib/errorUtils";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 import { useGetMeQuery } from "../../store/api/authApi";
@@ -22,7 +23,7 @@ export default function CustomerDashboard() {
 
   useEffect(() => {
     if (!isAuthLoading && (isAuthError || !isAuthenticated)) {
-      router.push("/login");
+      router.push("/login?redirect=%2Fdashboard&reason=expired");
     }
   }, [isAuthLoading, isAuthError, isAuthenticated, router]);
 
@@ -44,7 +45,7 @@ export default function CustomerDashboard() {
 
   const [notifActive, setNotifActive] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<FormattedApiError | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const cfg = activeToken ? {
@@ -67,7 +68,7 @@ export default function CustomerDashboard() {
       await cancelToken(activeToken.id).unwrap();
       setActionSuccess("Token cancelled successfully.");
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to cancel token");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -86,7 +87,7 @@ export default function CustomerDashboard() {
       await generateToken({ counterId }).unwrap();
       setActionSuccess(`Queue token successfully reserved for ${name}.`);
     } catch (err: any) {
-      setActionError(err?.data?.message || "Failed to get token");
+      setActionError(formatApiError(err, "action"));
     }
   };
 
@@ -104,9 +105,15 @@ export default function CustomerDashboard() {
         <div className="flex flex-col w-full">
           <div className="w-full max-w-7xl mx-auto px-margin py-space-lg flex flex-col gap-space-xl">
             {actionError && (
-              <div className="p-space-md bg-error-container rounded-lg flex items-center justify-between text-on-error-container">
-                <span className="font-body-md text-body-md font-semibold">{actionError}</span>
-                <button onClick={() => setActionError(null)} className="text-on-error-container font-bold">✕</button>
+              <div className="p-space-md bg-error-container rounded-lg flex items-start justify-between text-on-error-container shadow-sm">
+                <div className="flex items-start gap-space-xs">
+                  <span className="material-symbols-outlined text-error shrink-0">error</span>
+                  <div>
+                    <p className="font-label-ui font-bold">{actionError.title}</p>
+                    <p className="font-body-sm text-body-sm mt-0.5">{actionError.message}</p>
+                  </div>
+                </div>
+                <button onClick={() => setActionError(null)} className="text-on-error-container font-bold p-1">✕</button>
               </div>
             )}
             {actionSuccess && (
