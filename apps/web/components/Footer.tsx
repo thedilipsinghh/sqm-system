@@ -12,7 +12,7 @@ export default function Footer() {
             </span>
           </div>
           <span className="font-body-sm text-body-sm text-on-surface-variant">
-            © 2025 SQM System • Designed, Developed & Built by{" "}
+            © 2026 SQM System • Designed, Developed & Built by{" "}
             <a
               href="https://github.com/thedilipsinghh"
               target="_blank"
