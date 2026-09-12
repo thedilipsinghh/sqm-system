@@ -58,6 +58,9 @@ function LoginContent() {
 
     try {
       const res = await login({ email, password }).unwrap();
+      if (res?.token && typeof window !== "undefined") {
+        localStorage.setItem("token", res.token);
+      }
       if (res.user.role === "ADMIN") {
         router.push("/admin/dashboard");
       } else {

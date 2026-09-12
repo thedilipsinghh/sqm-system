@@ -32,8 +32,9 @@ export const registerCustomer = async (req: Request, res: Response): Promise<voi
       httpOnly: true,
       secure: env.NODE_ENV === "production",
       sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
     });
-    res.status(201).json({ success: true, user: newUser });
+    res.status(201).json({ success: true, token, user: newUser });
   } catch (error) {
     res.status(500).json({ success: false, message: "Internal server error" });
   }
@@ -65,9 +66,11 @@ export const loginUser = async (req: Request, res: Response): Promise<void> => {
       httpOnly: true,
       secure: env.NODE_ENV === "production",
       sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+      path: "/",
     });
     res.status(200).json({
       success: true,
+      token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   } catch (error) {
@@ -80,6 +83,7 @@ export const logoutUser = async (req: Request, res: Response): Promise<void> => 
     httpOnly: true,
     secure: env.NODE_ENV === "production",
     sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+    path: "/",
   });
   res.status(200).json({ success: true, message: "Logged out successfully" });
 };
@@ -94,6 +98,7 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
         httpOnly: true,
         secure: env.NODE_ENV === "production",
         sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        path: "/",
       });
       res.status(401).json({ success: false, message: "User not found" });
       return;

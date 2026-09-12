@@ -8,6 +8,14 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.token && typeof window !== "undefined") {
+            localStorage.setItem("token", data.token);
+          }
+        } catch {}
+      },
       invalidatesTags: ["User"],
     }),
     login: builder.mutation({
@@ -16,6 +24,14 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data?.token && typeof window !== "undefined") {
+            localStorage.setItem("token", data.token);
+          }
+        } catch {}
+      },
       invalidatesTags: ["User"],
     }),
     logout: builder.mutation({
@@ -23,6 +39,15 @@ export const authApi = baseApi.injectEndpoints({
         url: "/auth/logout",
         method: "POST",
       }),
+      async onQueryStarted(_arg, { queryFulfilled }) {
+        try {
+          await queryFulfilled;
+        } catch {} finally {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("token");
+          }
+        }
+      },
       invalidatesTags: ["User"],
     }),
     getMe: builder.query({

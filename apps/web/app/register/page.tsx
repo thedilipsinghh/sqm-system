@@ -25,7 +25,10 @@ export default function RegisterPage() {
     setErrorMsg("");
     
     try {
-      await register({ name, email, password, confirmPassword }).unwrap();
+      const res = await register({ name, email, password, confirmPassword }).unwrap();
+      if (res?.token && typeof window !== "undefined") {
+        localStorage.setItem("token", res.token);
+      }
       setShowToast(true);
       setTimeout(() => {
         setShowToast(false);

@@ -20,6 +20,15 @@ export const baseApi = createApi({
     baseUrl: getBaseUrl(),
     // Ensure cookies are sent with requests
     credentials: "include",
+    prepareHeaders: (headers) => {
+      if (typeof window !== "undefined") {
+        const token = localStorage.getItem("token");
+        if (token) {
+          headers.set("Authorization", `Bearer ${token}`);
+        }
+      }
+      return headers;
+    },
   }),
   tagTypes: ["User", "Counter", "Token", "Dashboard"],
   endpoints: () => ({}),
