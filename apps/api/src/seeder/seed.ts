@@ -18,8 +18,14 @@ const seed = async () => {
 
   try {
     // 1. Create Admin User
-    const adminEmail = process.env.ADMIN_USER || "admin@example.com";
-    const adminPass = process.env.ADMIN_PASS || "admin123";
+    const adminEmail = process.env.ADMIN_USER;
+    const adminPass = process.env.ADMIN_PASS;
+
+    if (!adminEmail || !adminPass) {
+      console.warn("⚠️ Skipping admin seeding: ADMIN_USER and ADMIN_PASS environment variables are required.");
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(adminPass, 10);
 
     const existingAdmin = await db
