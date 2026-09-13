@@ -7,6 +7,9 @@ import { authorize } from "../middleware/role.middleware";
 
 const router = Router();
 
+// Public lookup endpoint
+router.get("/lookup/:tokenNumber", tc.lookupToken);
+
 router.use(authenticate);
 
 // Customer endpoints

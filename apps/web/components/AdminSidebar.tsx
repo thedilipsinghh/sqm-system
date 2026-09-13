@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useGetMeQuery, useLogoutMutation } from "../store/api/authApi";
 
 export default function AdminSidebar() {
+  const pathname = usePathname();
   const { data: userResponse } = useGetMeQuery(undefined);
   const user = userResponse?.user || userResponse?.data;
   
@@ -15,6 +17,15 @@ export default function AdminSidebar() {
       window.location.href = "/";
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const scrollToSection = (id: string) => {
+    if (typeof window !== "undefined") {
+      const el = document.getElementById(id);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
     }
   };
 
@@ -45,13 +56,24 @@ export default function AdminSidebar() {
           <nav className="flex flex-col gap-1">
             <Link
               href="/admin/dashboard"
-              className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg transition-colors bg-primary text-on-primary font-semibold"
+              onClick={() => scrollToSection("admin-stats")}
+              className={`flex items-center gap-space-sm px-space-md py-space-sm rounded-lg transition-colors font-semibold ${
+                pathname === "/admin/dashboard"
+                  ? "bg-primary text-on-primary"
+                  : "text-inverse-on-surface hover:bg-surface-variant/20"
+              }`}
             >
               <span className="material-symbols-outlined text-[20px]">grid_view</span>
               Dashboard
             </Link>
             <Link
-              href="/admin/dashboard"
+              href="/admin/dashboard#counter-management"
+              onClick={(e) => {
+                if (pathname === "/admin/dashboard") {
+                  e.preventDefault();
+                  scrollToSection("counter-management");
+                }
+              }}
               className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
             >
               <span className="material-symbols-outlined text-[20px]">
@@ -60,7 +82,13 @@ export default function AdminSidebar() {
               Counters
             </Link>
             <Link
-              href="/admin/dashboard"
+              href="/admin/dashboard#queue-management"
+              onClick={(e) => {
+                if (pathname === "/admin/dashboard") {
+                  e.preventDefault();
+                  scrollToSection("queue-management");
+                }
+              }}
               className="flex items-center gap-space-sm px-space-md py-space-sm rounded-lg text-inverse-on-surface hover:bg-surface-variant/20 hover:text-inverse-on-surface transition-colors font-body-md text-body-md"
             >
               <span className="material-symbols-outlined text-[20px]">

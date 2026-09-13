@@ -5,6 +5,11 @@ import { StoreProvider } from "../store/StoreProvider";
 export const metadata: Metadata = {
   title: "SQM System | Smart Queue Management",
   description: "Join a queue digitally, track your position, and know when it is your turn in real time.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/favicon.ico",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({

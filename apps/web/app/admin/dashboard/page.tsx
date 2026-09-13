@@ -31,10 +31,36 @@ export default function AdminDashboardPage() {
     }
   }, [isUserLoading, isUserError, userResponse, router]);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Tab View State ('all' | 'counters' | 'queue')
+  const [activeTab, setActiveTab] = useState<"all" | "counters" | "queue">("all");
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash;
+      if (hash === "#counters" || hash === "#counter-management") {
+        setActiveTab("counters");
+      } else if (hash === "#queue" || hash === "#queue-management") {
+        setActiveTab("queue");
+      } else {
+        setActiveTab("all");
+      }
+    };
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange);
+  }, []);
+
+  // Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newCounter, setNewCounter] = useState({ name: "", prefix: "", description: "" });
+
+  const [editModalData, setEditModalData] = useState<{ id: string; name: string; prefix: string; description: string } | null>(null);
+  const [deleteConfirmCounter, setDeleteConfirmCounter] = useState<{ id: string; name: string } | null>(null);
+  const [isPauseAllConfirmOpen, setIsPauseAllConfirmOpen] = useState(false);
+
   const [actionError, setActionError] = useState<FormattedApiError | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined);
   const queues = countersRes?.data || [];
@@ -58,6 +84,7 @@ export default function AdminDashboardPage() {
   const [pauseCounter] = usePauseCounterMutation();
   const [resumeCounter] = useResumeCounterMutation();
   const [createCounter] = useCreateCounterMutation();
+  const [updateCounter] = useUpdateCounterMutation();
   const [deleteCounter] = useDeleteCounterMutation();
   const [activateCounter] = useActivateCounterMutation();
   const [deactivateCounter] = useDeactivateCounterMutation();
@@ -65,39 +92,49 @@ export default function AdminDashboardPage() {
   const handleCallNext = async (counterId: string) => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`call-${counterId}`);
     try {
       await callNextToken(counterId).unwrap();
       setActionSuccess("Called next token.");
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   const handleCompleteToken = async (tokenId: string) => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`complete-${tokenId}`);
     try {
       await completeToken(tokenId).unwrap();
       setActionSuccess("Token marked as complete.");
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   const handleSkipToken = async (tokenId: string) => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`skip-${tokenId}`);
     try {
       await skipToken(tokenId).unwrap();
       setActionSuccess("Token skipped.");
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   const handleTogglePause = async (counter: any) => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`pause-${counter.id}`);
     try {
       if (counter.isPaused) {
         await resumeCounter(counter.id).unwrap();
@@ -108,24 +145,35 @@ export default function AdminDashboardPage() {
       }
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   const handlePauseAll = async () => {
     setActionError(null);
     setActionSuccess(null);
+    setIsPauseAllConfirmOpen(false);
+    setPendingActionId("pause-all");
     try {
       const activeQueues = queues.filter((q: any) => q.isActive && !q.isPaused);
+      if (activeQueues.length === 0) {
+        setActionSuccess("No unpaused active counters to pause.");
+        return;
+      }
       await Promise.all(activeQueues.map((q: any) => pauseCounter(q.id).unwrap()));
-      setActionSuccess("Emergency pause applied to active queues.");
+      setActionSuccess("Emergency pause applied to all active queues.");
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
   const handleToggleActive = async (counter: any) => {
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`active-${counter.id}`);
     try {
       if (counter.isActive) {
         await deactivateCounter(counter.id).unwrap();
@@ -136,21 +184,29 @@ export default function AdminDashboardPage() {
       }
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
-  const handleDeleteCounter = async (id: string) => {
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmCounter) return;
+    const { id, name } = deleteConfirmCounter;
     setActionError(null);
     setActionSuccess(null);
+    setPendingActionId(`delete-${id}`);
+    setDeleteConfirmCounter(null);
     try {
       await deleteCounter(id).unwrap();
-      setActionSuccess("Counter deleted successfully.");
+      setActionSuccess(`Counter "${name}" deleted successfully.`);
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
-  const handleSaveCounter = async () => {
+  const handleSaveNewCounter = async () => {
     setActionError(null);
     setActionSuccess(null);
     if (!newCounter.name || !newCounter.prefix) {
@@ -160,13 +216,44 @@ export default function AdminDashboardPage() {
       });
       return;
     }
+    setPendingActionId("create-counter");
     try {
       await createCounter(newCounter).unwrap();
-      setIsModalOpen(false);
+      setIsAddModalOpen(false);
       setNewCounter({ name: "", prefix: "", description: "" });
       setActionSuccess("Counter created successfully.");
     } catch (err: any) {
       setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
+    }
+  };
+
+  const handleSaveEditCounter = async () => {
+    if (!editModalData) return;
+    setActionError(null);
+    setActionSuccess(null);
+    if (!editModalData.name || !editModalData.prefix) {
+      setActionError({
+        title: "Validation error",
+        message: "Counter name and prefix are required.",
+      });
+      return;
+    }
+    setPendingActionId(`edit-${editModalData.id}`);
+    try {
+      await updateCounter({
+        id: editModalData.id,
+        name: editModalData.name,
+        prefix: editModalData.prefix,
+        description: editModalData.description,
+      }).unwrap();
+      setEditModalData(null);
+      setActionSuccess("Counter updated successfully.");
+    } catch (err: any) {
+      setActionError(formatApiError(err, "action"));
+    } finally {
+      setPendingActionId(null);
     }
   };
 
@@ -175,7 +262,7 @@ export default function AdminDashboardPage() {
       <AdminSidebar />
       <div className="pl-64">
         <AdminHeader />
-        <main className="relative pt-16 w-full px-margin bg-surface">
+        <main className="relative pt-16 w-full px-margin bg-surface pb-12">
           <div className="flex flex-col w-full">
             <div className="py-space-md flex flex-col gap-space-lg">
               {actionError && (
@@ -191,11 +278,12 @@ export default function AdminDashboardPage() {
                 </div>
               )}
               {actionSuccess && (
-                <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between">
+                <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between shadow-sm">
                   <span className="font-body-md text-body-md font-semibold">{actionSuccess}</span>
                   <button onClick={() => setActionSuccess(null)} className="font-bold">✕</button>
                 </div>
               )}
+
               {/* Header Details */}
               <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col xl:flex-row xl:items-center xl:justify-between gap-space-md">
                 <div className="flex flex-col gap-1">
@@ -204,8 +292,8 @@ export default function AdminDashboardPage() {
                     <span className="material-symbols-outlined text-[14px]">
                       chevron_right
                     </span>
-                    <span className="text-primary font-semibold">
-                      Real-Time Queue Monitor
+                    <span className="text-primary font-semibold capitalize">
+                      {activeTab === "all" ? "Real-Time Overview" : activeTab === "counters" ? "Counter Provisioning & Desk Setup" : "Live Queue Monitor & Dispatch"}
                     </span>
                   </div>
                   <div className="flex items-center gap-space-sm flex-wrap mt-0.5">
@@ -220,13 +308,40 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-space-sm flex-wrap">
-                  <div className="flex items-center gap-space-xs bg-surface-container-low px-space-sm py-1.5 rounded-lg text-on-surface">
-                    <span className="material-symbols-outlined text-[16px] text-outline">
-                      tune
-                    </span>
-                    <span className="font-label-ui text-label-ui font-medium">
-                      All Counters ({stats.totalCounters || queues.length})
-                    </span>
+                  <div className="flex items-center gap-1 bg-surface-container-low p-1 rounded-lg">
+                    <button
+                      onClick={() => setActiveTab("all")}
+                      className={`flex items-center gap-1.5 px-space-sm py-1.5 rounded-md font-label-ui text-label-ui transition-colors ${
+                        activeTab === "all"
+                          ? "bg-primary text-on-primary font-bold shadow-sm"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">grid_view</span>
+                      <span>Overview</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("counters")}
+                      className={`flex items-center gap-1.5 px-space-sm py-1.5 rounded-md font-label-ui text-label-ui transition-colors ${
+                        activeTab === "counters"
+                          ? "bg-primary text-on-primary font-bold shadow-sm"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">desktop_windows</span>
+                      <span>Counters</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab("queue")}
+                      className={`flex items-center gap-1.5 px-space-sm py-1.5 rounded-md font-label-ui text-label-ui transition-colors ${
+                        activeTab === "queue"
+                          ? "bg-primary text-on-primary font-bold shadow-sm"
+                          : "text-on-surface-variant hover:text-on-surface"
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[16px]">linear_scale</span>
+                      <span>Queue Management</span>
+                    </button>
                   </div>
                   <div className="flex items-center gap-space-xs px-space-sm py-1.5 rounded-lg bg-surface-container-high text-on-surface">
                     <span className="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
@@ -238,7 +353,7 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-space-md">
+              <div id="admin-stats" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-space-md scroll-mt-20">
                 <div className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col justify-between">
                   <div className="flex items-center justify-between text-outline mb-space-xs">
                     <span className="font-label-ui text-label-ui uppercase tracking-wider">
@@ -365,23 +480,33 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="bg-surface-container-lowest rounded-xl p-space-sm shadow-sm flex flex-wrap items-center justify-between gap-space-sm">
+              {/* Action Buttons & Tab Views */}
+              <div id="counter-management" className="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-wrap items-center justify-between gap-space-sm scroll-mt-20 border border-surface-container-high">
+                <div className="flex items-center gap-space-sm flex-wrap">
+                  <span className="font-headline-sm text-headline-sm text-on-surface font-semibold flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-[22px]">desktop_windows</span>
+                    {activeTab === "counters" ? "Service Counter Management" : "Quick Actions"}
+                  </span>
+                  {activeTab === "counters" && (
+                    <span className="text-body-sm text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
+                      {queues.length} counter{queues.length === 1 ? "" : "s"} configured
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-space-xs flex-wrap">
                   <button
-                    onClick={() => setIsModalOpen(true)}
-                    className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors font-label-ui text-label-ui shadow-sm"
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-primary text-on-primary hover:bg-primary-container transition-colors font-label-ui text-label-ui shadow-md font-bold"
                   >
-                    <span className="material-symbols-outlined text-[18px]">
+                    <span className="material-symbols-outlined text-[20px]">
                       add_circle
                     </span>
-                    <span>Add New Counter</span>
+                    <span>Create Counter</span>
                   </button>
-                </div>
-                <div className="flex items-center gap-space-xs">
                   <button
-                    onClick={handlePauseAll}
-                    className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-error-container text-on-error-container hover:bg-error hover:text-on-error transition-colors font-label-ui text-label-ui"
+                    onClick={() => setIsPauseAllConfirmOpen(true)}
+                    disabled={pendingActionId === "pause-all"}
+                    className="flex items-center gap-space-xs px-space-md py-2 rounded-lg bg-error-container text-on-error-container hover:bg-error hover:text-on-error transition-colors font-label-ui text-label-ui disabled:opacity-50"
                   >
                     <span className="material-symbols-outlined text-[18px]">
                       pause_circle
@@ -392,7 +517,8 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* Main Content Sections */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg">
+              <div id="queue-management" className="grid grid-cols-1 xl:grid-cols-12 gap-space-lg scroll-mt-20">
+
                 <div className="xl:col-span-12 flex flex-col gap-space-md">
                   {/* Table Section */}
                   <div className="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col">
@@ -410,17 +536,13 @@ export default function AdminDashboardPage() {
                       <table className="w-full text-left">
                         <thead>
                           <tr className="bg-surface-container-low/50 text-on-surface-variant font-label-ui text-[11px] uppercase tracking-wider">
-                            <th className="py-space-sm px-space-md">Counter & Dept</th>
-                            <th className="py-space-sm px-space-md">
-                              Prefix & Operator
-                            </th>
+                            <th className="py-space-sm px-space-md">Counter Name & Description</th>
+                            <th className="py-space-sm px-space-md">Prefix</th>
                             <th className="py-space-sm px-space-md">Status</th>
                             <th className="py-space-sm px-space-md">Now Serving</th>
                             <th className="py-space-sm px-space-md">Waiting</th>
                             <th className="py-space-sm px-space-md">Est. Wait</th>
-                            <th className="py-space-sm px-space-md text-right">
-                              Quick Controls
-                            </th>
+                            <th className="py-space-sm px-space-md text-right">Quick Controls</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-surface-container-low font-body-md text-body-md text-on-surface">
@@ -446,6 +568,11 @@ export default function AdminDashboardPage() {
                                   <span className="font-semibold text-on-surface">
                                     {q.name}
                                   </span>
+                                  {q.description && (
+                                    <span className="text-body-sm text-on-surface-variant font-normal">
+                                      {q.description}
+                                    </span>
+                                  )}
                                 </div>
                               </td>
                               <td className="py-space-md px-space-md">
@@ -525,7 +652,8 @@ export default function AdminDashboardPage() {
                                         <>
                                           <button
                                             onClick={() => handleCompleteToken(q.currentTokenId)}
-                                            className="px-2 py-1.5 rounded bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-label-ui text-label-ui transition-colors flex items-center gap-1"
+                                            disabled={pendingActionId === `complete-${q.currentTokenId}`}
+                                            className="px-2 py-1.5 rounded bg-secondary-container hover:bg-secondary text-on-secondary-container hover:text-on-secondary font-label-ui text-label-ui transition-colors flex items-center gap-1 disabled:opacity-50"
                                             title="Complete Current"
                                           >
                                             <span className="material-symbols-outlined text-[16px]">
@@ -534,7 +662,8 @@ export default function AdminDashboardPage() {
                                           </button>
                                           <button
                                             onClick={() => handleSkipToken(q.currentTokenId)}
-                                            className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-error-container text-on-surface hover:text-on-error-container font-label-ui text-label-ui transition-colors flex items-center gap-1"
+                                            disabled={pendingActionId === `skip-${q.currentTokenId}`}
+                                            className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-error-container text-on-surface hover:text-on-error-container font-label-ui text-label-ui transition-colors flex items-center gap-1 disabled:opacity-50"
                                             title="Skip Current"
                                           >
                                             <span className="material-symbols-outlined text-[16px]">
@@ -551,8 +680,8 @@ export default function AdminDashboardPage() {
                                               ? "bg-surface-container-low text-outline cursor-not-allowed"
                                               : "bg-primary text-on-primary hover:bg-primary-container"
                                           }`}
-                                          disabled={!!q.currentTokenId}
-                                          title={q.currentTokenId ? "Complete current token first" : ""}
+                                          disabled={!!q.currentTokenId || pendingActionId === `call-${q.id}`}
+                                          title={q.currentTokenId ? "Complete current token first" : "Call Next"}
                                         >
                                           <span className="material-symbols-outlined text-[15px]">
                                             campaign
@@ -562,33 +691,44 @@ export default function AdminDashboardPage() {
                                       )}
                                       <button
                                         onClick={() => handleTogglePause(q)}
+                                        disabled={pendingActionId === `pause-${q.id}`}
                                         className={`px-2.5 py-1.5 rounded font-label-ui text-label-ui transition-colors flex items-center gap-1 ${
                                           q.isPaused
                                             ? "bg-surface-container-high text-on-surface hover:bg-surface-container"
                                             : "bg-surface-container-low hover:bg-surface-container text-on-surface"
-                                        }`}
+                                        } disabled:opacity-50`}
                                         title={q.isPaused ? "Resume Queue" : "Pause Queue"}
                                       >
                                         <span className="material-symbols-outlined text-[15px]">
                                           {q.isPaused ? "play_arrow" : "pause"}
                                         </span>
-                                        <span>{q.isPaused ? "Resume" : ""}</span>
+                                        <span>{q.isPaused ? "Resume" : "Pause"}</span>
                                       </button>
                                     </>
                                   )}
                                   <button
                                     onClick={() => handleToggleActive(q)}
-                                    className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-ui text-label-ui transition-colors flex items-center gap-1"
-                                    title={q.isActive ? "Deactivate" : "Activate"}
+                                    disabled={pendingActionId === `active-${q.id}`}
+                                    className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-ui text-label-ui transition-colors flex items-center gap-1 disabled:opacity-50"
+                                    title={q.isActive ? "Deactivate Counter" : "Activate Counter"}
                                   >
                                     <span className="material-symbols-outlined text-[16px]">
                                       {q.isActive ? "power_settings_new" : "power"}
                                     </span>
                                   </button>
                                   <button
-                                    onClick={() => handleDeleteCounter(q.id)}
+                                    onClick={() => setEditModalData({ id: q.id, name: q.name, prefix: q.prefix, description: q.description || "" })}
+                                    className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-surface-container text-on-surface font-label-ui text-label-ui transition-colors flex items-center gap-1"
+                                    title="Edit Counter"
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">
+                                      edit
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmCounter({ id: q.id, name: q.name })}
                                     className="px-2 py-1.5 rounded bg-surface-container-low hover:bg-error-container text-on-surface hover:text-on-error-container font-label-ui text-label-ui transition-colors flex items-center gap-1"
-                                    title="Delete"
+                                    title="Delete Counter"
                                   >
                                     <span className="material-symbols-outlined text-[16px]">
                                       delete
@@ -602,20 +742,7 @@ export default function AdminDashboardPage() {
                       </table>
                     </div>
                     <div className="p-space-sm bg-surface-container-low/50 flex items-center justify-between text-body-sm text-on-surface-variant px-space-md">
-                      <span>Showing {queues.length} configured counters</span>
-                      <div className="flex items-center gap-2">
-                        <button className="p-1 rounded hover:bg-surface-container text-outline">
-                          <span className="material-symbols-outlined text-[18px]">
-                            chevron_left
-                          </span>
-                        </button>
-                        <span className="font-label-ui text-label-ui">Page 1 of 2</span>
-                        <button className="p-1 rounded hover:bg-surface-container text-outline">
-                          <span className="material-symbols-outlined text-[18px]">
-                            chevron_right
-                          </span>
-                        </button>
-                      </div>
+                      <span>Showing {queues.length} configured counter{queues.length === 1 ? "" : "s"}</span>
                     </div>
                 </div>
               </div>
@@ -624,7 +751,7 @@ export default function AdminDashboardPage() {
         </div>
 
           {/* Add Counter Modal */}
-          {isModalOpen && (
+          {isAddModalOpen && (
             <div className="fixed inset-0 bg-inverse-surface/50 backdrop-blur-sm z-50 flex items-center justify-center p-space-md">
               <div className="bg-surface-container-lowest rounded-xl max-w-lg w-full p-space-lg shadow-xl flex flex-col gap-space-md">
                 <div className="flex items-center justify-between">
@@ -639,7 +766,7 @@ export default function AdminDashboardPage() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => setIsAddModalOpen(false)}
                     className="p-1 rounded text-outline hover:text-on-surface"
                   >
                     <span className="material-symbols-outlined text-[20px]">close</span>
@@ -688,16 +815,160 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="flex items-center justify-end gap-space-sm mt-2">
                   <button
-                    onClick={() => setIsModalOpen(false)}
+                    onClick={() => setIsAddModalOpen(false)}
                     className="px-space-md py-2 rounded-lg bg-surface-container-low text-on-surface font-label-ui text-label-ui hover:bg-surface-container"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleSaveCounter}
-                    className="px-space-md py-2 rounded-lg bg-primary text-on-primary font-label-ui text-label-ui hover:bg-primary-container"
+                    onClick={handleSaveNewCounter}
+                    disabled={pendingActionId === "create-counter"}
+                    className="px-space-md py-2 rounded-lg bg-primary text-on-primary font-label-ui text-label-ui hover:bg-primary-container disabled:opacity-50"
                   >
-                    Create Counter
+                    {pendingActionId === "create-counter" ? "Creating..." : "Create Counter"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Counter Modal */}
+          {editModalData && (
+            <div className="fixed inset-0 bg-inverse-surface/50 backdrop-blur-sm z-50 flex items-center justify-center p-space-md">
+              <div className="bg-surface-container-lowest rounded-xl max-w-lg w-full p-space-lg shadow-xl flex flex-col gap-space-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-space-xs">
+                    <div className="w-8 h-8 rounded-lg bg-primary-container text-on-primary flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[20px]">
+                        edit
+                      </span>
+                    </div>
+                    <h3 className="font-headline-md text-headline-md text-on-surface">
+                      Edit Service Counter
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setEditModalData(null)}
+                    className="p-1 rounded text-outline hover:text-on-surface"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">close</span>
+                  </button>
+                </div>
+                <div className="flex flex-col gap-space-sm">
+                  <label className="flex flex-col gap-1">
+                    <span className="font-label-ui text-label-ui text-on-surface-variant">
+                      Counter Name
+                    </span>
+                    <input
+                      className="px-space-sm py-2 rounded-lg bg-surface-container-low text-on-surface focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                      type="text"
+                      value={editModalData.name}
+                      onChange={(e) => setEditModalData({ ...editModalData, name: e.target.value })}
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-space-sm">
+                    <label className="flex flex-col gap-1">
+                      <span className="font-label-ui text-label-ui text-on-surface-variant">
+                        Prefix
+                      </span>
+                      <input
+                        className="px-space-sm py-2 rounded-lg bg-surface-container-low text-on-surface focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary font-label-token-md text-label-token-md"
+                        maxLength={2}
+                        type="text"
+                        value={editModalData.prefix}
+                        onChange={(e) => setEditModalData({ ...editModalData, prefix: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <label className="flex flex-col gap-1">
+                    <span className="font-label-ui text-label-ui text-on-surface-variant">
+                      Description
+                    </span>
+                    <input
+                      className="px-space-sm py-2 rounded-lg bg-surface-container-low text-on-surface focus:outline-none focus:bg-surface-container-lowest focus:ring-1 focus:ring-primary font-body-md text-body-md"
+                      type="text"
+                      value={editModalData.description}
+                      onChange={(e) => setEditModalData({ ...editModalData, description: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="flex items-center justify-end gap-space-sm mt-2">
+                  <button
+                    onClick={() => setEditModalData(null)}
+                    className="px-space-md py-2 rounded-lg bg-surface-container-low text-on-surface font-label-ui text-label-ui hover:bg-surface-container"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEditCounter}
+                    disabled={pendingActionId === `edit-${editModalData.id}`}
+                    className="px-space-md py-2 rounded-lg bg-primary text-on-primary font-label-ui text-label-ui hover:bg-primary-container disabled:opacity-50"
+                  >
+                    {pendingActionId === `edit-${editModalData.id}` ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteConfirmCounter && (
+            <div className="fixed inset-0 bg-inverse-surface/50 backdrop-blur-sm z-50 flex items-center justify-center p-space-md">
+              <div className="bg-surface-container-lowest rounded-xl max-w-md w-full p-space-lg shadow-xl flex flex-col gap-space-md">
+                <div className="flex items-center gap-space-xs text-error">
+                  <span className="material-symbols-outlined text-[24px]">warning</span>
+                  <h3 className="font-headline-md text-headline-md text-on-surface">
+                    Delete Counter?
+                  </h3>
+                </div>
+                <p className="font-body-md text-body-md text-on-surface-variant">
+                  Are you sure you want to delete counter <strong className="text-on-surface">{deleteConfirmCounter.name}</strong>? This action cannot be undone.
+                </p>
+                <div className="flex items-center justify-end gap-space-sm mt-2">
+                  <button
+                    onClick={() => setDeleteConfirmCounter(null)}
+                    className="px-space-md py-2 rounded-lg bg-surface-container-low text-on-surface font-label-ui text-label-ui hover:bg-surface-container"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={pendingActionId === `delete-${deleteConfirmCounter.id}`}
+                    className="px-space-md py-2 rounded-lg bg-error text-on-error font-label-ui text-label-ui hover:bg-error-container disabled:opacity-50"
+                  >
+                    {pendingActionId === `delete-${deleteConfirmCounter.id}` ? "Deleting..." : "Delete Counter"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Emergency Pause All Confirmation Modal */}
+          {isPauseAllConfirmOpen && (
+            <div className="fixed inset-0 bg-inverse-surface/50 backdrop-blur-sm z-50 flex items-center justify-center p-space-md">
+              <div className="bg-surface-container-lowest rounded-xl max-w-md w-full p-space-lg shadow-xl flex flex-col gap-space-md">
+                <div className="flex items-center gap-space-xs text-error">
+                  <span className="material-symbols-outlined text-[24px]">pause_circle</span>
+                  <h3 className="font-headline-md text-headline-md text-on-surface">
+                    Emergency Pause All?
+                  </h3>
+                </div>
+                <p className="font-body-md text-body-md text-on-surface-variant">
+                  This will pause all currently active queues across all service desks. You will need to resume individual counters manually when operations resume.
+                </p>
+                <div className="flex items-center justify-end gap-space-sm mt-2">
+                  <button
+                    onClick={() => setIsPauseAllConfirmOpen(false)}
+                    className="px-space-md py-2 rounded-lg bg-surface-container-low text-on-surface font-label-ui text-label-ui hover:bg-surface-container"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePauseAll}
+                    disabled={pendingActionId === "pause-all"}
+                    className="px-space-md py-2 rounded-lg bg-error text-on-error font-label-ui text-label-ui hover:bg-error-container disabled:opacity-50"
+                  >
+                    {pendingActionId === "pause-all" ? "Pausing All..." : "Pause All Queues"}
                   </button>
                 </div>
               </div>

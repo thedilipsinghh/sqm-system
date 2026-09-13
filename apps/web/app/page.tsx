@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { useGetCountersQuery } from "../store/api/counterApi";
-import { useGenerateTokenMutation, useGetCurrentCustomerTokenQuery } from "../store/api/tokenApi";
+import { useGenerateTokenMutation, useGetCurrentCustomerTokenQuery, useLazyLookupTokenQuery } from "../store/api/tokenApi";
 import { useGetMeQuery } from "../store/api/authApi";
 import { useGetDashboardStatsQuery } from "../store/api/dashboardApi";
 
@@ -30,6 +30,7 @@ function HomeContent() {
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [lookupResultVisible, setLookupResultVisible] = useState(false);
   const [lookupTokenValue, setLookupTokenValue] = useState("");
+  const [triggerLookup, { data: lookupRes, isLoading: isLookupLoading, isError: isLookupError, error: lookupError }] = useLazyLookupTokenQuery();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{ id: string; name: string; prefix: string } | null>(
@@ -47,8 +48,10 @@ function HomeContent() {
   };
 
   const handleVerifyToken = () => {
-    if (lookupTokenValue.trim()) {
+    const queryStr = lookupTokenValue.trim().toUpperCase();
+    if (queryStr) {
       setLookupResultVisible(true);
+      triggerLookup(queryStr);
     }
   };
 
@@ -67,7 +70,7 @@ function HomeContent() {
     if (activeToken) {
       showToast(
         "Action Denied",
-        "You already have an active token. Complete or cancel your current token before generating a new one."
+        "You already have an active token. Please complete or cancel your current token before requesting another one."
       );
       return;
     }
@@ -82,13 +85,22 @@ function HomeContent() {
 
   useEffect(() => {
     const counterId = searchParams.get("counterId");
-    if (counterId && counters.length > 0 && user && !activeToken && !isModalOpen) {
-      const c = counters.find((x: any) => x.id === counterId);
-      if (c && !c.isPaused && c.isActive) {
-        handleOpenModal(c.id, c.name, c.prefix);
+    if (counterId && counters.length > 0 && user) {
+      if (activeToken) {
+        showToast(
+          "Action Denied",
+          "You already have an active token. Please complete or cancel your current token before requesting another one."
+        );
+        router.replace("/");
+      } else if (!isModalOpen) {
+        const c = counters.find((x: any) => x.id === counterId);
+        if (c && !c.isPaused && c.isActive) {
+          handleOpenModal(c.id, c.name, c.prefix);
+          router.replace("/");
+        }
       }
     }
-  }, [searchParams, counters, user, activeToken]);
+  }, [searchParams, counters, user, activeToken, isModalOpen, router]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
@@ -352,99 +364,138 @@ function HomeContent() {
                     </button>
                   </div>
                 </div>
-                {/* Result Placeholder */}
+                {/* Result Component connected to Backend Lookup API */}
                 {lookupResultVisible && (() => {
-                  const searchStr = lookupTokenValue.trim().toUpperCase();
-                  const matchedCounter = counters.find((c: any) => 
-                    searchStr.startsWith(c.prefix.toUpperCase()) || c.name.toUpperCase().includes(searchStr)
-                  );
-                  const isUserToken = activeToken && activeToken.tokenNumber.toUpperCase() === searchStr;
-
-                  if (isUserToken) {
+                  if (isLookupLoading) {
                     return (
-                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
+                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low text-on-surface-variant font-body-md flex items-center gap-2">
+                        <span className="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+                        <span>Searching database for token "{lookupTokenValue.trim().toUpperCase()}"...</span>
+                      </div>
+                    );
+                  }
+
+                  const tokenData = lookupRes?.data;
+
+                  if (tokenData) {
+                    const status = tokenData.status;
+                    
+                    const badgeStyles: Record<string, string> = {
+                      WAITING: "bg-tertiary-fixed text-on-tertiary-fixed-variant border border-tertiary/30",
+                      SERVING: "bg-secondary-fixed text-secondary border border-secondary/30 animate-pulse",
+                      COMPLETED: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300",
+                      SKIPPED: "bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300",
+                      CANCELLED: "bg-error-container text-on-error-container border border-error/30",
+                    };
+
+                    const statusLabels: Record<string, string> = {
+                      WAITING: "Waiting",
+                      SERVING: "Serving",
+                      COMPLETED: "Completed",
+                      SKIPPED: "Skipped",
+                      CANCELLED: "Cancelled",
+                    };
+
+                    return (
+                      <div className="mt-space-md p-space-md rounded-xl bg-surface-container-low block border border-outline-variant/30 shadow-sm">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-md">
                           <div className="flex items-center gap-space-md">
-                            <div className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary uppercase">
-                              {activeToken.tokenNumber}
+                            <div className="px-space-md py-2 rounded-xl bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary font-bold uppercase shadow-sm border border-outline-variant/20">
+                              {tokenData.tokenNumber}
                             </div>
-                            <div>
-                              <div className="font-headline-sm text-headline-sm text-on-surface">
-                                {activeToken.counter?.name || "Service Desk"}
+                            <div className="flex flex-col gap-0.5">
+                              <div className="font-headline-sm text-headline-sm text-on-surface font-semibold">
+                                {tokenData.counter?.name || "Service Desk"}
                               </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-body-sm text-body-sm text-on-surface-variant">Status:</span>
+                                <span className={`px-2.5 py-0.5 rounded-full font-label-ui text-label-ui font-bold uppercase tracking-wider text-[11px] ${badgeStyles[status] || "bg-surface-container text-on-surface"}`}>
+                                  {statusLabels[status] || status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Status Specific Metrics */}
+                          {status === "WAITING" && (
+                            <div className="flex items-center gap-space-lg flex-wrap">
+                              <div>
+                                <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                  Queue Position
+                                </span>
+                                <span className="font-label-token-md text-label-token-md text-on-surface font-bold">
+                                  {tokenData.peopleAhead !== null ? tokenData.peopleAhead + 1 : "—"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                  Currently Serving
+                                </span>
+                                <span className="font-label-token-md text-label-token-md text-primary font-bold">
+                                  {tokenData.currentlyServing || "—"}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
+                                  Est. Wait
+                                </span>
+                                <span className="font-label-token-md text-label-token-md text-secondary font-bold">
+                                  {tokenData.estimatedWait || "—"}
+                                </span>
+                              </div>
+                            </div>
+                          )}
+
+                          {status === "SERVING" && (
+                            <div className="flex items-center gap-space-md">
+                              <div className="px-3 py-1.5 rounded-lg bg-secondary/10 text-secondary border border-secondary/20 font-body-sm font-semibold flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[18px]">campaign</span>
+                                <span>Currently being served at desk</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {status === "COMPLETED" && (
+                            <div className="flex items-center gap-space-md">
                               <div className="font-body-sm text-body-sm text-on-surface-variant">
-                                Status: {activeToken.status}
+                                {tokenData.completedAt ? `Completed at ${new Date(tokenData.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Service Completed"}
                               </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-space-lg">
-                            <div>
-                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                                Ahead of You
-                              </span>
-                              <span className="font-label-token-md text-label-token-md text-on-surface">
-                                {activeToken.peopleAhead} {activeToken.peopleAhead === 1 ? "person" : "people"}
-                              </span>
+                          )}
+
+                          {status === "SKIPPED" && (
+                            <div className="flex items-center gap-space-md">
+                              <div className="font-body-sm text-body-sm text-on-surface-variant">
+                                Token was skipped by desk operator
+                              </div>
                             </div>
-                            <div>
-                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                                Est. Call
-                              </span>
-                              <span className="font-label-token-md text-label-token-md text-secondary">
-                                {activeToken.estimatedWait}
-                              </span>
+                          )}
+
+                          {status === "CANCELLED" && (
+                            <div className="flex items-center gap-space-md">
+                              <div className="font-body-sm text-body-sm text-on-surface-variant">
+                                Token was cancelled
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     );
                   }
 
-                  if (matchedCounter) {
+                  const is404 = (lookupError as any)?.status === 404 || lookupRes?.success === false;
+
+                  if (is404 || isLookupError || (lookupRes && !tokenData)) {
                     return (
-                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block">
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-space-sm">
-                          <div className="flex items-center gap-space-md">
-                            <div className="px-space-md py-1.5 rounded-lg bg-surface-container-lowest font-label-token-lg text-label-token-lg text-primary uppercase">
-                              Prefix {matchedCounter.prefix}
-                            </div>
-                            <div>
-                              <div className="font-headline-sm text-headline-sm text-on-surface">
-                                {matchedCounter.name}
-                              </div>
-                              <div className="font-body-sm text-body-sm text-on-surface-variant">
-                                Currently Serving: {matchedCounter.currentToken}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-space-lg">
-                            <div>
-                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                                In Queue
-                              </span>
-                              <span className="font-label-token-md text-label-token-md text-on-surface">
-                                {matchedCounter.waitingCount} {matchedCounter.waitingCount === 1 ? "person" : "people"}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="font-label-ui text-label-ui text-on-surface-variant uppercase tracking-wider block">
-                                Est. Wait
-                              </span>
-                              <span className="font-label-token-md text-label-token-md text-secondary">
-                                {matchedCounter.estimatedWait}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
+                      <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low text-on-surface-variant font-body-sm flex items-center gap-2">
+                        <span className="material-symbols-outlined text-outline">search_off</span>
+                        <span className="font-semibold text-on-surface">Token not found.</span>
+                        <span>Please check the token number and try again.</span>
                       </div>
                     );
                   }
 
-                  return (
-                    <div className="mt-space-md p-space-md rounded-lg bg-surface-container-low block text-on-surface-variant font-body-sm">
-                      No active counter or ticket found matching reference code "{lookupTokenValue}".
-                    </div>
-                  );
+                  return null;
                 })()}
               </div>
             </section>

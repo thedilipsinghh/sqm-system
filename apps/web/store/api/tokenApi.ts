@@ -51,6 +51,10 @@ export const tokenApi = baseApi.injectEndpoints({
       }),
       invalidatesTags: ["Token", "Counter", "Dashboard"],
     }),
+    lookupToken: builder.query({
+      query: (tokenNumber) => `/tokens/lookup/${encodeURIComponent(tokenNumber)}`,
+      providesTags: ["Token"],
+    }),
   }),
 });
 
@@ -63,4 +67,6 @@ export const {
   useCompleteTokenMutation,
   useSkipTokenMutation,
   useCancelTokenMutation,
+  useLookupTokenQuery,
+  useLazyLookupTokenQuery,
 } = tokenApi;

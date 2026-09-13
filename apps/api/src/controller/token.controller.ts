@@ -236,3 +236,80 @@ const updateTokenStatus = async (tokenId: string, status: "COMPLETED" | "SKIPPED
 export const completeToken = (req: Request, res: Response) => updateTokenStatus(req.params.id as string, "COMPLETED", res);
 export const skipToken = (req: Request, res: Response) => updateTokenStatus(req.params.id as string, "SKIPPED", res);
 export const cancelToken = (req: Request, res: Response) => updateTokenStatus(req.params.id as string, "CANCELLED", res);
+
+export const lookupToken = async (req: Request, res: Response): Promise<void> => {
+  const tokenNumber = req.params.tokenNumber ? String(req.params.tokenNumber).trim().toUpperCase() : "";
+  if (!tokenNumber) {
+    res.status(400).json({ success: false, message: "Token number is required" });
+    return;
+  }
+
+  try {
+    const [tokenRecord] = await db
+      .select({
+        token: tokens,
+        counter: counters,
+      })
+      .from(tokens)
+      .leftJoin(counters, eq(tokens.counterId, counters.id))
+      .where(sql`UPPER(${tokens.tokenNumber}) = ${tokenNumber}`)
+      .orderBy(desc(tokens.createdAt))
+      .limit(1);
+
+    if (!tokenRecord || !tokenRecord.token) {
+      res.status(404).json({ success: false, message: "Token not found" });
+      return;
+    }
+
+    const { token, counter } = tokenRecord;
+
+    let peopleAhead: number | null = null;
+    let currentlyServing: string | null = null;
+
+    if (counter) {
+      const [servingToken] = await db
+        .select({ tokenNumber: tokens.tokenNumber })
+        .from(tokens)
+        .where(and(eq(tokens.counterId, counter.id), eq(tokens.status, "SERVING")))
+        .limit(1);
+        
+      currentlyServing = servingToken ? servingToken.tokenNumber : null;
+
+      if (token.status === "WAITING") {
+        const [pRes] = await db
+          .select({ count: sql<number>`cast(count(*) as integer)` })
+          .from(tokens)
+          .where(and(
+            eq(tokens.counterId, counter.id),
+            eq(tokens.status, "WAITING"),
+            sql`${tokens.sequenceNumber} < ${token.sequenceNumber}`
+          ));
+        peopleAhead = pRes?.count || 0;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        id: token.id,
+        tokenNumber: token.tokenNumber,
+        sequenceNumber: token.sequenceNumber,
+        status: token.status,
+        createdAt: token.createdAt,
+        calledAt: token.calledAt,
+        completedAt: token.completedAt,
+        counter: counter ? {
+          id: counter.id,
+          name: counter.name,
+          prefix: counter.prefix,
+        } : null,
+        peopleAhead,
+        currentlyServing,
+        estimatedWait: peopleAhead !== null ? `${peopleAhead * 5} mins` : null,
+      },
+    });
+  } catch (error) {
+    console.error("lookupToken error:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};

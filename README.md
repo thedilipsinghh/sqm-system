@@ -1,102 +1,148 @@
-# SQM System (Smart Queue Management)
+# Smart Queue Management System (SQM)
 
-SQM System is a high-throughput queue orchestrator and dispatch management platform built for municipal centers, multi-specialty triage clinics, and express service counters.
+[![Next.js](https://img.shields.io/badge/Next.js-16.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![Express.js](https://img.shields.io/badge/Express-5.2-lightgrey?style=flat-square&logo=express)](https://expressjs.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon_Serverless-blue?style=flat-square&logo=postgresql)](https://neon.tech/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
+[![Turborepo](https://img.shields.io/badge/Turborepo-Monorepo-ef4444?style=flat-square&logo=turborepo)](https://turbo.build/)
 
-## Project Architecture
+An enterprise-grade, high-throughput queue orchestrator and dispatch management platform built for municipal service centers, triage health facilities, financial branch operations, and express service counters.
 
-This project is structured as a Turborepo monorepo:
+---
+
+## 🏛️ Architecture Overview
+
+The SQM System is architected as a clean Turborepo monorepo designed for performance, modular design, and seamless scalability:
 
 ```text
 sqm-system/
 ├── apps/
-│   ├── web/           # Next.js 16 App Router + TailwindCSS + Redux Toolkit (RTK Query)
-│   └── api/           # Express API + Drizzle ORM + PostgreSQL (Neon) + JWT Auth
+│   ├── web/               # Next.js 16 App Router + TailwindCSS + Redux Toolkit (RTK Query)
+│   └── api/               # Express.js + Drizzle ORM + PostgreSQL (Neon DB) + JWT Authentication
 └── packages/
-    ├── eslint-config/ # Monorepo ESLint configurations
-    ├── typescript-config/ # Shared TSConfig
-    ├── types/         # Shared TypeScript interfaces & types
-    └── ui/            # Shared React UI components
+    ├── eslint-config/     # Workspace ESLint rules & code style definitions
+    ├── typescript-config/ # Shared TypeScript tsconfig templates
+    ├── types/             # Shared TypeScript domain interfaces & validation schemas
+    └── ui/                # Shared React UI design system components
 ```
 
 ---
 
-## Features
+## ✨ Key System Features
 
-- **Customer Portal**: Self-service token generation, real-time position tracking, live wait-time estimates.
-- **Operator Console**: Desk queue management, token triage, call next, hold, and completion dispatch.
-- **Admin Dashboard**: System-wide performance metrics, counter configuration, throughput analytics.
-- **Secure Authentication**: JWT-based session cookies with HttpOnly & SameSite security.
-- **Cloud Database**: Serverless PostgreSQL via Neon DB and Drizzle ORM.
+### 1. Customer Self-Service Portal (`/`)
+- **First-Time Guest Browsing**: Public queue statistics and desk status accessible immediately without forced login.
+- **Token Generation**: Instant token assignment with prefix matching (e.g. `A-101`, `B-102`).
+- **Live Queue Tracking**: Track token status (`WAITING`, `SERVING`, `COMPLETED`, `SKIPPED`, `CANCELLED`) with estimated wait times.
 
----
-
-## Tech Stack
-
-- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, TailwindCSS, Redux Toolkit Query
-- **Backend**: Node.js, Express, Drizzle ORM, PostgreSQL (Neon DB), Zod validation
-- **Monorepo Tools**: Turborepo, npm Workspaces
+### 2. Admin & Dispatch Terminal (`/admin/dashboard`)
+- **Real-Time Overview**: Live queue volume, waiting counts, parallel service desks, and completion rates.
+- **Service Desk Provisioning**: Add, edit, activate/deactivate, and delete service counters with customizable prefixes.
+- **Queue Controls**: Call next customer, complete token, skip token, hold queue, or execute **Emergency Pause All**.
+- **Role-Based Access Control**: Strict route guarding and JWT cookie validation restricting operational access to authorized administrative accounts.
 
 ---
 
-## Local Development Setup
+## 🛠️ Technology Stack
 
-1. **Install Dependencies**:
+| Layer | Technologies Used |
+| :--- | :--- |
+| **Frontend Framework** | Next.js 16 (App Router), React 19, TypeScript |
+| **State & API Queries** | Redux Toolkit, RTK Query (Automatic Cache Invalidation & Tagging) |
+| **Styling & UI** | TailwindCSS, Material Symbols Outlined, Custom Design Tokens |
+| **Backend API** | Node.js, Express 5, Zod Schema Validation |
+| **Database & ORM** | PostgreSQL (Neon DB), Drizzle ORM, Drizzle Kit Migrations |
+| **Security & Auth** | JWT Access & Refresh Tokens, HttpOnly Secure Cookies, CORS, Passwords hashed via Bcrypt |
+| **Build & Tooling** | Turborepo, npm Workspaces, TSX |
+
+---
+
+## 🚀 Local Development Setup
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **npm**: v9.0.0 or higher
+- **PostgreSQL**: Neon DB connection URL or local PostgreSQL instance
+
+### Step-by-Step Installation
+
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/your-org/sqm-system.git
+   cd sqm-system
+   ```
+
+2. **Install Workspace Dependencies**:
    ```bash
    npm install
    ```
 
-2. **Configure Environment Variables**:
-   Copy `.env.example` to `.env` in `apps/api` and `apps/web`:
+3. **Environment Configuration**:
+   Create `.env` files in `apps/api` and `apps/web` based on the provided templates:
    ```bash
    cp apps/api/.env.example apps/api/.env
    cp apps/web/.env.example apps/web/.env
    ```
 
-3. **Run Database Migrations & Seed**:
+4. **Initialize Database Schema & Seed Data**:
    ```bash
+   # From project root
    cd apps/api
    npm run db:push
    npm run db:seed
    cd ../..
    ```
 
-4. **Start Development Servers**:
+5. **Start Development Servers**:
    ```bash
    npm run dev
    ```
-   - Frontend: `http://localhost:3000`
-   - Backend API: `http://localhost:5000`
+   - **Frontend App**: `http://localhost:3000`
+   - **Backend API**: `http://localhost:5000`
 
 ---
 
-## Environment Variables
+## 🔐 Environment Variables Guide
 
-### Frontend (`apps/web/.env`)
-- `NEXT_PUBLIC_API_URL`: Express API endpoint (e.g. `http://localhost:5000/api` or deployed API URL)
+> ⚠️ **Security Notice**: Never commit real database credentials, JWT secrets, or production keys to version control. Always store sensitive secrets in secure environment variable stores.
 
-### Backend (`apps/api/.env`)
-- `PORT`: Port number (default `5000`)
-- `NODE_ENV`: Runtime environment (`development` | `production`)
-- `FRONTEND_URL`: Allowed CORS origin (e.g. `http://localhost:3000` or deployed frontend URL)
-- `DATABASE_URL`: PostgreSQL connection string (Neon DB)
-- `JWT_ACCESS_SECRET`: Secret key for JWT access tokens
-- `JWT_REFRESH_SECRET`: Secret key for JWT refresh tokens
-- `CLOUDINARY_*`: Cloudinary credentials (optional)
-- `EMAIL_*`: SMTP/Email credentials (optional)
+### Backend Configurations (`apps/api/.env`)
+```env
+PORT=5000
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+DATABASE_URL=postgresql://<username>:<password>@<db-host>/<db-name>?sslmode=require
+JWT_ACCESS_SECRET=your_jwt_access_secret_here
+JWT_REFRESH_SECRET=your_jwt_refresh_secret_here
+```
+
+### Frontend Configurations (`apps/web/.env`)
+```env
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+```
 
 ---
 
-## Vercel Deployment Instructions
+## 🌐 Production Deployment (Vercel / Cloud)
 
-1. **Frontend (`apps/web`)**:
-   - Set **Root Directory** to `apps/web`.
-   - Add Environment Variable:
-     - `NEXT_PUBLIC_API_URL` = `<your-backend-api-url>`
+### 1. Web Frontend Deployment (`apps/web`)
+- **Root Directory**: `apps/web`
+- **Build Command**: `npm run build`
+- **Environment Variables**:
+  - `NEXT_PUBLIC_API_URL`: URL of deployed API (e.g. `https://api.yourdomain.com/api`)
 
-2. **Backend (`apps/api`)**:
-   - Set **Root Directory** to `apps/api`.
-   - Add Environment Variables:
-     - `DATABASE_URL` = `<your-neon-db-url>`
-     - `JWT_ACCESS_SECRET` = `<your-jwt-secret>`
-     - `FRONTEND_URL` = `<your-frontend-vercel-url>`
-     - `NODE_ENV` = `production`
+### 2. API Backend Deployment (`apps/api`)
+- **Root Directory**: `apps/api`
+- **Build Command**: `npm run build`
+- **Environment Variables**:
+  - `NODE_ENV`: `production`
+  - `DATABASE_URL`: Production PostgreSQL SSL Connection String
+  - `JWT_ACCESS_SECRET`: High-entropy 256-bit secret string
+  - `JWT_REFRESH_SECRET`: High-entropy 256-bit secret string
+  - `FRONTEND_URL`: Production Web URL (e.g. `https://sqm.yourdomain.com`)
+
+---
+
+## 📄 License & Software Standards
+
+This project is maintained under enterprise software quality standards with automated static analysis, modular monorepo packages, and strict TypeScript verification.

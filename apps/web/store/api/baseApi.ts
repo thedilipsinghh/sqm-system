@@ -46,12 +46,6 @@ export const baseApi = createApi({
         const url = typeof args === "string" ? args : args.url;
         if (!url.includes("/auth/login") && !url.includes("/auth/register")) {
           localStorage.removeItem("token");
-          if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-            const currentPath = window.location.pathname + window.location.search;
-            if (!window.location.search.includes("reason=expired")) {
-              window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}&reason=expired`;
-            }
-          }
         }
       }
     }
