@@ -8,6 +8,8 @@ import { formatApiError, FormattedApiError } from "../../lib/errorUtils";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 
+import { useToast } from "../../components/Toast";
+
 function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +18,7 @@ function LoginContent() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   const [login, { isLoading }] = useLoginMutation();
 
   const isExpiredSession = searchParams.get("reason") === "expired";
@@ -30,6 +33,7 @@ function LoginContent() {
       if (res?.token && typeof window !== "undefined") {
         localStorage.setItem("token", res.token);
       }
+      toast.success("Login successful", "Welcome back!");
       const redirectUrl = searchParams.get("redirect");
       const counterId = searchParams.get("counterId");
       if (res?.user?.role === "ADMIN") {
@@ -44,6 +48,7 @@ function LoginContent() {
     } catch (err) {
       const formatted = formatApiError(err, "login");
       setErrorState(formatted);
+      toast.error(formatted.title, formatted.message);
     }
   };
 

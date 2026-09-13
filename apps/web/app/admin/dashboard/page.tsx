@@ -19,8 +19,11 @@ import { useGetDashboardStatsQuery } from "../../../store/api/dashboardApi";
 import { useGetMeQuery } from "../../../store/api/authApi";
 import { formatApiError, FormattedApiError } from "../../../lib/errorUtils";
 
+import { useToast } from "../../../components/Toast";
+
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const toast = useToast();
   const { data: userResponse, isLoading: isUserLoading, isError: isUserError } = useGetMeQuery(undefined);
   
   useEffect(() => {
@@ -59,7 +62,6 @@ export default function AdminDashboardPage() {
   const [isPauseAllConfirmOpen, setIsPauseAllConfirmOpen] = useState(false);
 
   const [actionError, setActionError] = useState<FormattedApiError | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
   const { data: countersRes, isLoading: isCountersLoading } = useGetCountersQuery(undefined);
@@ -91,13 +93,14 @@ export default function AdminDashboardPage() {
 
   const handleCallNext = async (counterId: string) => {
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`call-${counterId}`);
     try {
-      await callNextToken(counterId).unwrap();
-      setActionSuccess("Called next token.");
+      const res = await callNextToken(counterId).unwrap();
+      toast.success("Next customer called", `Serving Token ${res.data?.tokenNumber || ""}`);
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -105,13 +108,14 @@ export default function AdminDashboardPage() {
 
   const handleCompleteToken = async (tokenId: string) => {
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`complete-${tokenId}`);
     try {
       await completeToken(tokenId).unwrap();
-      setActionSuccess("Token marked as complete.");
+      toast.success("Token completed successfully");
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -119,13 +123,14 @@ export default function AdminDashboardPage() {
 
   const handleSkipToken = async (tokenId: string) => {
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`skip-${tokenId}`);
     try {
       await skipToken(tokenId).unwrap();
-      setActionSuccess("Token skipped.");
+      toast.success("Token skipped");
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -133,18 +138,19 @@ export default function AdminDashboardPage() {
 
   const handleTogglePause = async (counter: any) => {
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`pause-${counter.id}`);
     try {
       if (counter.isPaused) {
         await resumeCounter(counter.id).unwrap();
-        setActionSuccess(`Resumed counter ${counter.name}.`);
+        toast.success("Counter resumed", `Queue active for ${counter.name}.`);
       } else {
         await pauseCounter(counter.id).unwrap();
-        setActionSuccess(`Paused counter ${counter.name}.`);
+        toast.info("Counter paused", `Queue held for ${counter.name}.`);
       }
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -152,19 +158,20 @@ export default function AdminDashboardPage() {
 
   const handlePauseAll = async () => {
     setActionError(null);
-    setActionSuccess(null);
     setIsPauseAllConfirmOpen(false);
     setPendingActionId("pause-all");
     try {
       const activeQueues = queues.filter((q: any) => q.isActive && !q.isPaused);
       if (activeQueues.length === 0) {
-        setActionSuccess("No unpaused active counters to pause.");
+        toast.info("Notice", "No unpaused active counters to pause.");
         return;
       }
       await Promise.all(activeQueues.map((q: any) => pauseCounter(q.id).unwrap()));
-      setActionSuccess("Emergency pause applied to all active queues.");
+      toast.warning("Emergency Pause All applied", "All active queues have been paused.");
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -172,18 +179,19 @@ export default function AdminDashboardPage() {
 
   const handleToggleActive = async (counter: any) => {
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`active-${counter.id}`);
     try {
       if (counter.isActive) {
         await deactivateCounter(counter.id).unwrap();
-        setActionSuccess(`Deactivated counter ${counter.name}.`);
+        toast.info("Counter deactivated", `${counter.name} is now offline.`);
       } else {
         await activateCounter(counter.id).unwrap();
-        setActionSuccess(`Activated counter ${counter.name}.`);
+        toast.success("Counter activated", `${counter.name} is now online.`);
       }
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -193,14 +201,15 @@ export default function AdminDashboardPage() {
     if (!deleteConfirmCounter) return;
     const { id, name } = deleteConfirmCounter;
     setActionError(null);
-    setActionSuccess(null);
     setPendingActionId(`delete-${id}`);
     setDeleteConfirmCounter(null);
     try {
       await deleteCounter(id).unwrap();
-      setActionSuccess(`Counter "${name}" deleted successfully.`);
+      toast.success("Counter deleted successfully", `Desk "${name}" has been removed.`);
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -208,12 +217,10 @@ export default function AdminDashboardPage() {
 
   const handleSaveNewCounter = async () => {
     setActionError(null);
-    setActionSuccess(null);
     if (!newCounter.name || !newCounter.prefix) {
-      setActionError({
-        title: "Validation error",
-        message: "Counter name and prefix are required.",
-      });
+      const valErr = { title: "Validation error", message: "Counter name and prefix are required." };
+      setActionError(valErr);
+      toast.error(valErr.title, valErr.message);
       return;
     }
     setPendingActionId("create-counter");
@@ -221,9 +228,11 @@ export default function AdminDashboardPage() {
       await createCounter(newCounter).unwrap();
       setIsAddModalOpen(false);
       setNewCounter({ name: "", prefix: "", description: "" });
-      setActionSuccess("Counter created successfully.");
+      toast.success("Counter created successfully", `Service desk "${newCounter.name}" is now ready.`);
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -232,12 +241,10 @@ export default function AdminDashboardPage() {
   const handleSaveEditCounter = async () => {
     if (!editModalData) return;
     setActionError(null);
-    setActionSuccess(null);
     if (!editModalData.name || !editModalData.prefix) {
-      setActionError({
-        title: "Validation error",
-        message: "Counter name and prefix are required.",
-      });
+      const valErr = { title: "Validation error", message: "Counter name and prefix are required." };
+      setActionError(valErr);
+      toast.error(valErr.title, valErr.message);
       return;
     }
     setPendingActionId(`edit-${editModalData.id}`);
@@ -249,9 +256,11 @@ export default function AdminDashboardPage() {
         description: editModalData.description,
       }).unwrap();
       setEditModalData(null);
-      setActionSuccess("Counter updated successfully.");
+      toast.success("Counter updated successfully");
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     } finally {
       setPendingActionId(null);
     }
@@ -275,12 +284,6 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                   <button onClick={() => setActionError(null)} className="text-on-error-container font-bold p-1">✕</button>
-                </div>
-              )}
-              {actionSuccess && (
-                <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between shadow-sm">
-                  <span className="font-body-md text-body-md font-semibold">{actionSuccess}</span>
-                  <button onClick={() => setActionSuccess(null)} className="font-bold">✕</button>
                 </div>
               )}
 

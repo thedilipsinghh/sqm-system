@@ -15,8 +15,11 @@ import {
 } from "../../store/api/tokenApi";
 import { useGetCountersQuery } from "../../store/api/counterApi";
 
+import { useToast } from "../../components/Toast";
+
 export default function CustomerDashboard() {
   const router = useRouter();
+  const toast = useToast();
   const { data: userResponse, isLoading: isAuthLoading, isError: isAuthError } = useGetMeQuery(undefined);
   const user = userResponse?.user || userResponse?.data;
   const isAuthenticated = Boolean(user);
@@ -46,7 +49,6 @@ export default function CustomerDashboard() {
   const [notifActive, setNotifActive] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [actionError, setActionError] = useState<FormattedApiError | null>(null);
-  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
   const cfg = activeToken ? {
     statusText: activeToken.status === "SERVING" ? "SERVING NOW" : "WAITING",
@@ -63,12 +65,13 @@ export default function CustomerDashboard() {
   const handleCancelToken = async () => {
     if (!activeToken) return;
     setActionError(null);
-    setActionSuccess(null);
     try {
       await cancelToken(activeToken.id).unwrap();
-      setActionSuccess("Token cancelled successfully.");
+      toast.success("Token cancelled successfully");
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     }
   };
 
@@ -82,12 +85,13 @@ export default function CustomerDashboard() {
 
   const handleGetToken = async (counterId: string, name: string) => {
     setActionError(null);
-    setActionSuccess(null);
     try {
-      await generateToken({ counterId }).unwrap();
-      setActionSuccess(`Queue token successfully reserved for ${name}.`);
+      const res = await generateToken({ counterId }).unwrap();
+      toast.success(`Token ${res.data?.tokenNumber || ""} generated successfully`, `Queue token reserved for ${name}.`);
     } catch (err: any) {
-      setActionError(formatApiError(err, "action"));
+      const formatted = formatApiError(err, "action");
+      setActionError(formatted);
+      toast.error(formatted.title, formatted.message);
     }
   };
 
@@ -114,12 +118,6 @@ export default function CustomerDashboard() {
                   </div>
                 </div>
                 <button onClick={() => setActionError(null)} className="text-on-error-container font-bold p-1">✕</button>
-              </div>
-            )}
-            {actionSuccess && (
-              <div className="p-space-md bg-secondary-fixed text-secondary rounded-lg flex items-center justify-between">
-                <span className="font-body-md text-body-md font-semibold">{actionSuccess}</span>
-                <button onClick={() => setActionSuccess(null)} className="font-bold">✕</button>
               </div>
             )}
             {/* Header / Welcome Banner */}

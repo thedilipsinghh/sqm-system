@@ -9,9 +9,12 @@ import { useGenerateTokenMutation, useGetCurrentCustomerTokenQuery, useLazyLooku
 import { useGetMeQuery } from "../store/api/authApi";
 import { useGetDashboardStatsQuery } from "../store/api/dashboardApi";
 
+import { useToast } from "../components/Toast";
+
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
 
   const { data: userResponse, isLoading: isAuthLoading } = useGetMeQuery(undefined);
   const user = userResponse?.user || userResponse?.data;
@@ -25,7 +28,7 @@ function HomeContent() {
   const { data: countersResponse, isLoading } = useGetCountersQuery(undefined, { pollingInterval: 3000 });
   const counters = countersResponse?.data || [];
   
-  const [generateToken] = useGenerateTokenMutation();
+  const [generateToken, { isLoading: isGeneratingToken }] = useGenerateTokenMutation();
 
   const [isLookupOpen, setIsLookupOpen] = useState(false);
   const [lookupResultVisible, setLookupResultVisible] = useState(false);
@@ -34,10 +37,6 @@ function HomeContent() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<{ id: string; name: string; prefix: string } | null>(
-    null
-  );
-
-  const [toastData, setToastData] = useState<{ title: string; body: string } | null>(
     null
   );
 
@@ -68,7 +67,7 @@ function HomeContent() {
     }
     
     if (activeToken) {
-      showToast(
+      toast.warning(
         "Action Denied",
         "You already have an active token. Please complete or cancel your current token before requesting another one."
       );
@@ -76,7 +75,7 @@ function HomeContent() {
     }
 
     if (counter.isPaused) {
-      showToast("Queue Paused", "This queue is currently paused. Please try again when the queue resumes.");
+      toast.warning("Queue Paused", "This queue is currently paused. Please try again when the queue resumes.");
       return;
     }
 
@@ -87,7 +86,7 @@ function HomeContent() {
     const counterId = searchParams.get("counterId");
     if (counterId && counters.length > 0 && user) {
       if (activeToken) {
-        showToast(
+        toast.warning(
           "Action Denied",
           "You already have an active token. Please complete or cancel your current token before requesting another one."
         );
@@ -100,18 +99,11 @@ function HomeContent() {
         }
       }
     }
-  }, [searchParams, counters, user, activeToken, isModalOpen, router]);
+  }, [searchParams, counters, user, activeToken, isModalOpen, router, toast]);
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setModalData(null);
-  };
-
-  const showToast = (title: string, body: string) => {
-    setToastData({ title, body });
-    setTimeout(() => {
-      setToastData(null);
-    }, 4000);
   };
 
   const handleConfirmToken = async () => {
@@ -119,16 +111,16 @@ function HomeContent() {
     try {
       const res = await generateToken({ counterId: modalData.id }).unwrap();
       handleCloseModal();
-      showToast(
-        `Token ${res.data.tokenNumber} Confirmed`,
-        "Active ticket routed to mobile screen & triage monitor."
+      toast.success(
+        `Token ${res.data.tokenNumber} generated successfully`,
+        "Your active token is now tracked on your dashboard."
       );
-      setTimeout(() => router.push("/dashboard"), 1000);
+      setTimeout(() => router.push("/dashboard"), 800);
     } catch (err: any) {
       handleCloseModal();
-      showToast(
-        "Token Generation Failed",
-        err?.data?.message || "Please login or try again."
+      toast.error(
+        "Token generation failed",
+        err?.data?.message || "Unable to generate token. Please try again."
       );
     }
   };
@@ -1063,31 +1055,6 @@ function HomeContent() {
             </div>
           </div>
         )}
-
-        {/* Operational Action Feedback Banner / Toast */}
-        <div
-          className={`fixed bottom-6 right-6 z-50 transition-all duration-300 pointer-events-none ${
-            toastData
-              ? "transform translate-y-0 opacity-100"
-              : "transform translate-y-20 opacity-0"
-          }`}
-        >
-          {toastData && (
-            <div className="bg-inverse-surface text-inverse-on-surface px-space-lg py-space-md rounded-xl shadow-xl flex items-center gap-space-md">
-              <span className="material-symbols-outlined text-secondary text-[24px]">
-                verified
-              </span>
-              <div className="flex flex-col">
-                <span className="font-headline-sm text-headline-sm">
-                  {toastData.title}
-                </span>
-                <span className="font-body-sm text-body-sm text-surface-dim">
-                  {toastData.body}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
       </main>
       <Footer />
     </>

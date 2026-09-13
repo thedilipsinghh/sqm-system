@@ -4,16 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useGetMeQuery, useLogoutMutation } from "../store/api/authApi";
 
+import { useToast } from "./Toast";
+
 export default function AdminSidebar() {
   const pathname = usePathname();
   const { data: userResponse } = useGetMeQuery(undefined);
   const user = userResponse?.user || userResponse?.data;
+  const toast = useToast();
   
   const [logout] = useLogoutMutation();
 
   const handleLogout = async () => {
     try {
       await logout(undefined).unwrap();
+      toast.info("Logged out successfully");
       window.location.href = "/";
     } catch (err) {
       console.error(err);

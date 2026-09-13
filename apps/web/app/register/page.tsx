@@ -8,8 +8,9 @@ import { formatApiError, FormattedApiError } from "../../lib/errorUtils";
 import Header from "../../components/Header";
 import Footer from "../../components/Footer";
 
+import { useToast } from "../../components/Toast";
+
 export default function RegisterPage() {
-  const [showToast, setShowToast] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [errorState, setErrorState] = useState<FormattedApiError | null>(null);
 
@@ -19,6 +20,7 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const router = useRouter();
+  const toast = useToast();
   const [register, { isLoading }] = useRegisterMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,14 +32,14 @@ export default function RegisterPage() {
       if (res?.token && typeof window !== "undefined") {
         localStorage.setItem("token", res.token);
       }
-      setShowToast(true);
+      toast.success("Customer registered successfully", "Welcome to SQM System!");
       setTimeout(() => {
-        setShowToast(false);
         router.push("/dashboard");
-      }, 1500);
+      }, 1000);
     } catch (err: any) {
       const formatted = formatApiError(err, "register");
       setErrorState(formatted);
+      toast.error(formatted.title, formatted.message);
     }
   };
 
@@ -156,35 +158,6 @@ export default function RegisterPage() {
             {/* Right Form Card Column */}
             <div className="lg:col-span-7">
               <div className="bg-surface-container-lowest p-6 sm:p-8 rounded-xl shadow-md relative">
-                
-                {/* Toast Notification */}
-                {showToast && (
-                  <div
-                    className="transition-all duration-500 opacity-100 mb-6 bg-secondary-container text-on-secondary-container p-4 rounded-lg flex items-center justify-between"
-                    id="toastNotification"
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-secondary">
-                        check_circle
-                      </span>
-                      <div>
-                        <p className="font-headline-sm text-headline-sm text-on-surface">
-                          Account created successfully!
-                        </p>
-                        <p className="font-body-sm text-body-sm text-on-surface-variant">
-                          Redirecting to queue dashboard...
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      className="text-on-surface-variant hover:text-on-surface"
-                      onClick={() => setShowToast(false)}
-                    >
-                      <span className="material-symbols-outlined text-sm">close</span>
-                    </button>
-                  </div>
-                )}
 
                 <div className="mb-8">
                   <h2 className="font-headline-lg text-headline-lg text-on-surface">

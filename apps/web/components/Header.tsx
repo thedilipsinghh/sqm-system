@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useGetMeQuery, useLogoutMutation } from "../store/api/authApi";
 import { useRouter } from "next/navigation";
 
+import { useToast } from "./Toast";
+
 export default function Header() {
   const { data: userResponse } = useGetMeQuery(undefined);
   const user = userResponse?.user || userResponse?.data;
+  const toast = useToast();
   
   const [logout] = useLogoutMutation();
   const router = useRouter();
@@ -14,6 +17,7 @@ export default function Header() {
   const handleLogout = async () => {
     try {
       await logout(undefined).unwrap();
+      toast.info("Logged out successfully");
       // Hard redirect to clear all Redux state (RTK Query cache) and ensure username is wiped
       window.location.href = "/";
     } catch (err) {
